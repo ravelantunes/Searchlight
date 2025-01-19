@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="23094" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="23094"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <customObject id="-2" userLabel="File's Owner"/>
+        <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
+        <customObject id="-3" userLabel="Application" customClass="NSObject"/>
+        <tableCellView identifier="ButtonCollectionViewItem" id="OKs-wd-4GV" customClass="DatabaseTableViewCell" customModule="PeeGee" customModuleProvider="target">
+            <rect key="frame" x="0.0" y="0.0" width="583" height="66"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <subviews>
+                <customView translatesAutoresizingMaskIntoConstraints="NO" id="EMK-NR-TxK" userLabel="Buttons Container">
+                    <rect key="frame" x="520" y="0.0" width="60" height="66"/>
+                    <constraints>
+                        <constraint firstAttribute="width" constant="60" id="xC4-nt-iPC"/>
+                    </constraints>
+                </customView>
+                <textField focusRingType="none" horizontalHuggingPriority="251" verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="Osx-QH-Rqv">
+                    <rect key="frame" x="3" y="25" width="516" height="16"/>
+                    <constraints>
+                        <constraint firstAttribute="height" constant="16" id="S4d-h8-ccp"/>
+                    </constraints>
+                    <textFieldCell key="cell" lineBreakMode="clipping" title="Label" usesSingleLineMode="YES" id="z6j-Id-yAq">
+                        <font key="font" metaFont="system"/>
+                        <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                        <color key="backgroundColor" name="textBackgroundColor" catalog="System" colorSpace="catalog"/>
+                    </textFieldCell>
+                </textField>
+            </subviews>
+            <constraints>
+                <constraint firstItem="Osx-QH-Rqv" firstAttribute="centerY" secondItem="OKs-wd-4GV" secondAttribute="centerY" id="6FF-MJ-yqy"/>
+                <constraint firstItem="EMK-NR-TxK" firstAttribute="top" secondItem="OKs-wd-4GV" secondAttribute="top" id="8X0-HR-k6b"/>
+                <constraint firstItem="EMK-NR-TxK" firstAttribute="leading" secondItem="Osx-QH-Rqv" secondAttribute="trailing" constant="3" id="Bx3-V2-PdR"/>
+                <constraint firstItem="Osx-QH-Rqv" firstAttribute="leading" secondItem="OKs-wd-4GV" secondAttribute="leading" constant="5" id="cGd-pf-RBx"/>
+                <constraint firstAttribute="trailing" secondItem="EMK-NR-TxK" secondAttribute="trailing" constant="3" id="cxp-Bn-zBg"/>
+                <constraint firstAttribute="bottom" secondItem="EMK-NR-TxK" secondAttribute="bottom" id="ws0-c9-xoi"/>
+            </constraints>
+            <connections>
+                <outlet property="textField" destination="Osx-QH-Rqv" id="Di2-ET-Dfn"/>
+                <outlet property="utilityButtonsContainerView" destination="EMK-NR-TxK" id="NoX-pg-Xj2"/>
+                <outlet property="utilityButtonsContainerViewWidthConstraint" destination="xC4-nt-iPC" id="yH4-59-Dvi"/>
+            </connections>
+            <point key="canvasLocation" x="-155.5" y="76"/>
+        </tableCellView>
+    </objects>
+</document>
