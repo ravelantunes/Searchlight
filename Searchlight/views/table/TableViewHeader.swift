@@ -71,8 +71,7 @@ class TableHeaderView: NSTableHeaderView {
         
         let column = data.columns[popoverShowingAtColumnIndex]
         let columnName = column.name
-        
-        
+                
         // TODO: abstract statistics somewhere else. They are here just as a proof-of-concept for now
         // Calculate the number of unique values in data.column
         var uniqueValuesSet = Set<String>()
