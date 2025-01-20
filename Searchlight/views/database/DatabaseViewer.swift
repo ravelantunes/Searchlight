@@ -29,7 +29,9 @@ struct DatabaseViewer: View {
     @State private var showEditor = false
     @State private var text = ""
     @State private var isLoading = false
-
+    
+    // Keep reference to current API call task, so it can be cancelled
+    @State private var currentTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -166,13 +168,21 @@ struct DatabaseViewer: View {
     }
     
     private func refreshData() {
-        Task {
+        currentTask?.cancel()
+        currentTask = Task {
             isLoading = true
-            // Create an empty result as loading state while waiting for result
-            self.data = SelectResult(columns: self.data.columns, rows: [])
-            self.data = try await pgApi.select(params: queryParams)
-            isLoading = false
-            errorMessage = ""
+            defer {
+                isLoading = false
+            }
+                        
+            do {
+                let data = try await pgApi.select(params: queryParams)
+                guard !Task.isCancelled else { return }
+                self.data = data
+            } catch {
+                guard !Task.isCancelled else { return }
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }
