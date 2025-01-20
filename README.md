@@ -1,5 +1,7 @@
 # Searchlight - Postgres MacOS Client
 
+![Screenshot of Searchlight](./docs/screenshot1.png)
+
 ## Goal
 Searchlight is a native macOS, open-source PostgreSQL client designed to be simple, lightweight, and developer-friendly. It offers a clean and intuitive interface for managing databases and running queries without the complexity of full-scale database management tools. Searchlight focuses on delivering a smooth and efficient experience for developers who need quick and easy access to their PostgreSQL databases.
 
