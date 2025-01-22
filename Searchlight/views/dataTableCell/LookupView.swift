@@ -43,17 +43,16 @@ struct LookupView: View {
     
     // Results from search query
     @State private var results: [SelectResultRow] = []
-//
-//    // Callback for when any query params changes and new results needs to be fetched
-//    @State var onLookupChange: ((Column, String, @escaping (Result<SelectResult, any Error>) -> Void) -> Void)
+
+    // Callback for when any query params changes and new results needs to be fetched
+    @State var onLookupChange: ((Column, String, @escaping (Result<SelectResult, any Error>) -> Void) -> Void)?
     
     // Callback for when user selects a row
     @State var onRowSelection: ((SelectResultRow) -> Void)
     
     // Callback to notify parent view to close this popover
     @State var onClose: (() -> Void)
-    
-    
+        
     // Event monitor for keys, so event registration and de-registration state can be managed outside of SwiftUI
     @StateObject private var keyEventMonitor = KeyEventMonitor()
     
@@ -74,6 +73,7 @@ struct LookupView: View {
                    .progressViewStyle(CircularProgressViewStyle())
                    .padding()
             }
+            .transition(.opacity)
         } else {
             Text("Looking up records in \(lookUpViewModel.targetTable)")
                 .font(.subheadline)

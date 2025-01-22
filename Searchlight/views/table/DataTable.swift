@@ -35,6 +35,11 @@ class TableViewAppKit: NSView {
     let tableViewHeader = TableHeaderView()
     var errorPopover: NSView?
     var pgApi: PostgresDatabaseAPI?
+            
+    private var previousOffset: CGFloat = 0.0 // Used to detect if user scrolling up or down, so we know when to animate
+    private var shouldAnimateCells = true
+    private var maxAnimatedIndex = 0 // Keep index to prevent re-animating cell already loaded
+
     private var isInsertingRow = false
     private var rowBeingEditedIndex: Int?
     
@@ -54,6 +59,15 @@ class TableViewAppKit: NSView {
         tableView.headerView = tableViewHeader
         tableView.columnAutoresizingStyle = .noColumnAutoresizing
         tableView.allowsColumnResizing = true
+        
+        if let scrollView = tableView.enclosingScrollView {
+                   scrollView.contentView.postsBoundsChangedNotifications = true
+                   NotificationCenter.default.addObserver(self,
+                                                          selector: #selector(boundsDidChange),
+                                                          name: NSView.boundsDidChangeNotification,
+                                                          object: scrollView.contentView)
+               }
+           
     }
     
     @objc func tableViewSingleClick(_ sender: AnyObject) {
@@ -105,6 +119,15 @@ class TableViewAppKit: NSView {
         rowBeingEditedIndex = actionCoordinate!.row
     }
     
+    func didUpdateData() {
+        previousOffset = 0.0
+        shouldAnimateCells = true
+        maxAnimatedIndex = Int(tableView.frame.height / 17.0) // TODO: not keep it a constant here
+        
+        refreshColumns()
+        tableView.reloadData()
+    }
+    
     // Removes all the columns in the table and re-creates based on the columns in the data.columns
     func refreshColumns() {
         
@@ -137,6 +160,11 @@ class TableViewAppKit: NSView {
             }
             tableColumn.width = max(biggestSizeFromRows, 100)
 
+            tableViewHeader.alphaValue = 0
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.2
+                tableViewHeader.animator().alphaValue = 1
+            }
             self.tableView.addTableColumn(tableColumn)
         }
         
@@ -326,6 +354,16 @@ class TableViewAppKit: NSView {
         pasteboard.setString(cellValue, forType: .string)
     }
     
+    // This function is used to detect scroll, and by using previousOffset property we can determine if user is scrolling up or down
+    // This imformation is useful for some transition animations
+    @objc func boundsDidChange(notification: Notification) {
+        guard let contentView = notification.object as? NSClipView else { return }
+        
+        let currentOffset = contentView.bounds.origin.y
+        shouldAnimateCells = currentOffset > previousOffset
+        previousOffset = currentOffset
+    }
+    
     @objc private func deleteRow() {
         guard !readOnly else { return }
         self.appKitDelegate?.onRowDelete(selectResultRow: selectedRow!) { result in
@@ -457,8 +495,7 @@ struct DataTable: NSViewRepresentable {
         nsView.data = data
         nsView.pgApi = pgApi        
         nsView.sortOrder = sortOrder
-        nsView.refreshColumns()
-        nsView.tableView.reloadData()
+        nsView.didUpdateData()
     }
 
     func makeCoordinator() -> Coordinator {
@@ -584,7 +621,20 @@ extension TableViewAppKit: NSTableViewDelegate, NSTableViewDataSource {
             cell?.setContent(content: cellContent)
         }
         
-        cell?.delegate = self
+        cell!.delegate = self
+            
+        // Animate in the cell
+        if shouldAnimateCells && row < maxAnimatedIndex {
+            cell!.alphaValue = 0.0
+                        
+            DispatchQueue.main.asyncAfter(deadline: .now() + (0.01 * Double(row))) {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.3
+                    cell!.animator().alphaValue = 1.0
+                }
+            }
+        }
+        
         return cell
     }
 

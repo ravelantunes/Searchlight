@@ -57,37 +57,41 @@ struct TableSelectionContentView: View {
                 "pg_catalog",
             ]
             
-            // Sort the schemas in a way that puts the non-system schemas first
-            schemas = try await pgApi.listTables().sorted { schema1, schema2 in
-               let isSystem1 = systemSchemas.contains(schema1.name)
-               let isSystem2 = systemSchemas.contains(schema2.name)
-               
-               switch (isSystem1, isSystem2) {
-               case (false, true):
-                   // schema1 is user, schema2 is system
-                   return true
-               case (true, false):
-                   // schema1 is system, schema2 is user
-                   return false
-               default:
-                   return schema1.name.lowercased() < schema2.name.lowercased()
-               }
-            }
-                        
-            // Initialize expansion state. Tries to set the public schema as expanded by default, if it exists.
-            var hasPublicNamedSchema = false
-            for schema in schemas {
-                if schema.name == "public" {
-                    hasPublicNamedSchema = true
-                    schemaExpansionState[schema.name] = true
-                } else {
-                    schemaExpansionState[schema.name] = false
+            // Sort the schemas in a way that puts the non-system schemas first        
+            let updatedSchemas = try await pgApi.listTables().sorted { schema1, schema2 in
+                let isSystem1 = systemSchemas.contains(schema1.name)
+                let isSystem2 = systemSchemas.contains(schema2.name)
+                
+                switch (isSystem1, isSystem2) {
+                case (false, true):
+                    // schema1 is user, schema2 is system
+                    return true
+                case (true, false):
+                    // schema1 is system, schema2 is user
+                    return false
+                default:
+                    return schema1.name.lowercased() < schema2.name.lowercased()
                 }
             }
             
-            // If public schema doesn't exists, expand the first schema by default
-            if !hasPublicNamedSchema && schemas.count > 0 {
-                schemaExpansionState[schemas.first!.name] = true
+            withAnimation {
+                schemas = updatedSchemas
+                
+                // Initialize expansion state. Tries to set the public schema as expanded by default, if it exists.
+                var hasPublicNamedSchema = false
+                for schema in schemas {
+                    if schema.name == "public" {
+                        hasPublicNamedSchema = true
+                        schemaExpansionState[schema.name] = true
+                    } else {
+                        schemaExpansionState[schema.name] = false
+                    }
+                }
+                
+                // If public schema doesn't exists, expand the first schema by default
+                if !hasPublicNamedSchema && schemas.count > 0 {
+                    schemaExpansionState[schemas.first!.name] = true
+                }
             }
         }
     }

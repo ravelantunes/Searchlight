@@ -42,7 +42,7 @@ class PostgresConnectionManager {
         let connectionSource = PostgresConnectionSource(sqlConfiguration: postgresNIOSqlConfiguration)
         connectionPool = EventLoopGroupConnectionPool(
             source: connectionSource,
-            maxConnectionsPerEventLoop: 1,
+            maxConnectionsPerEventLoop: 2,
             on: eventLoopGroup
         )
     }
