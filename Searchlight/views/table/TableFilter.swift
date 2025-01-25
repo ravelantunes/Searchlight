@@ -58,6 +58,10 @@ struct TableFilter: View {
             }
         }
         .padding(8)
+        .onChange(of: columns) {
+            selectedFilterColumn = columns.first
+            selectedFilterOperator = operationOptions.first!.operatorString
+        }
         .onChange(of: selectedFilterColumn) { oldColumn, newColumn in
             switch newColumn?.typeName {
             case "timestamp":

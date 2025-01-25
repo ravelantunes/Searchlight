@@ -143,10 +143,14 @@ class PostgresDatabaseAPI: ObservableObject {
             throw NSError(domain: "postgress", code: 0, userInfo: nil)
         }
         
-        var columns = try await describeTable(tableName: tableName, schemaName: schemaName)
-        columns.insert(Column(name: "ctid", type: "ctid", typeName: "ctid", typeCategory: "b", position: columns.count, foreignSchemaName: nil, foreignTableName: nil, foreignColumnName: nil), at: columns.count)
         let query = "SELECT *, ctid::text FROM \"\(schemaName)\".\"\(tableName)\" \(params.filterStatement()) \(params.sortStatement()) LIMIT 100;"
-        let tableRows = try await postgresConnectionManager.query(query: query)
+        async let selectTask = try await postgresConnectionManager.query(query: query)
+        async let describeTask = try describeTable(tableName: tableName, schemaName: schemaName)
+        
+        // Perform both queries in parallel
+        let tableRows = try await selectTask
+        var columns = try await describeTask
+        columns.insert(Column(name: "ctid", type: "ctid", typeName: "ctid", typeCategory: "b", position: columns.count, foreignSchemaName: nil, foreignTableName: nil, foreignColumnName: nil), at: columns.count)
         
         let mappedRows: [[Cell]] = tableRows.enumerated().map { (rowIndex, row) in
             let mappedColumns = columns.enumerated().map { (columnIndex, column) in

@@ -39,9 +39,21 @@ struct DatabaseViewer: View {
                 AppKitTextView(text: $text, onQuerySubmit: { queryString in
                     Task {
                         do {
-                            isLoading = true
-                            data = try await pgApi.execute(queryString)
-                            isLoading = false
+                            withAnimation {
+                                isLoading = true
+                            }
+                            defer {
+                                withAnimation {
+                                    isLoading = false
+                                }
+                            }
+                            do {
+                                errorMessage = ""
+                                data = try await pgApi.execute(queryString)
+                            } catch {
+                                errorMessage = error.localizedDescription
+                            }
+                            
                             // TODO: implement error handling from editor
                         }
                     }
@@ -60,13 +72,13 @@ struct DatabaseViewer: View {
                 if isLoading {
                     Color.black.opacity(0.3)
                         .ignoresSafeArea()
-                    VStack {
-                       ProgressView("Loading...")
-                           .progressViewStyle(CircularProgressViewStyle())
-                           .padding()
-                    }
+                    ProgressView("Loading...")
+                        .progressViewStyle(CircularProgressViewStyle())
+                        .padding()
+                        .transition(.opacity)
                 }
             }
+            .animation(.easeInOut, value: isLoading)
             HStack(alignment: .center) {
                 Button(action: {
                     dataTableController.insertRow()
@@ -78,7 +90,7 @@ struct DatabaseViewer: View {
                     .accessibilityLabel("Add")
                     .padding(3)
                     .disabled(data.tableName == nil)
-                // TODO: implement additional option buttons here
+                Text(errorMessage)
                 Spacer()
             }
         }
@@ -101,12 +113,13 @@ struct DatabaseViewer: View {
                 guard let table = newValue, newValue != oldValue else {
                     return
                 }
-                self.sortOrder = []
-                self.queryParams = QueryParameters(schemaName: table.schema, tableName: table.name, sortColumn: nil, sortOrder: nil, limit: 100, filters: [])
+                errorMessage = ""
+                $showEditor.wrappedValue = false
+                sortOrder = []
+                queryParams = QueryParameters(schemaName: table.schema, tableName: table.name, sortColumn: nil, sortOrder: nil, limit: 100, filters: [])
             }
             .onChange(of: queryParams) {oldValue, newValue in
                 refreshData()
-                
             }
             .environmentObject(pgApi)
             .onAppear {
@@ -170,9 +183,14 @@ struct DatabaseViewer: View {
     private func refreshData() {
         currentTask?.cancel()
         currentTask = Task {
-            isLoading = true
+            errorMessage = ""
+            withAnimation {
+                isLoading = true
+            }
             defer {
-                isLoading = false
+                withAnimation {
+                    isLoading = false
+                }
             }
                         
             do {

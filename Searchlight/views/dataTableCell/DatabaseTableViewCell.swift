@@ -108,7 +108,9 @@ class DatabaseTableViewCell: NSTableRowView {
             do {
                 let columns = try await self.pgApi?.describeTable(tableName: content.column.foreignTableName!, schemaName: content.column.foreignSchemaName!)
                 guard let columns = columns else { return }
-                lookUpViewModel.columns = columns
+                withAnimation {
+                    lookUpViewModel.columns = columns
+                }
             } catch {
                 print("Couldn't describe table \(content.column.foreignTableName!) to show on lookup popover")
             }
@@ -251,19 +253,22 @@ class DatabaseTableViewCell: NSTableRowView {
         case "lookup":
             showLookUpPopover()
         case "view":
+            let quickLookViewModel = QuickLookViewModel()
+            let quickLookView = QuickLookView(viewModel: quickLookViewModel)
+            let popoverViewController = PopoverViewController(with: quickLookView)
+            popover = NSPopover()
+            popover!.behavior = .transient
+            popover!.contentViewController = popoverViewController
+            popover!.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxX)
+            
             Task {
                 do {
                     let result = try await self.pgApi?.select(params: QueryParameters(schemaName: content!.column.foreignSchemaName, tableName: content!.column.foreignTableName, filters: [
                         Filter(column: content!.column.foreignColumnName!, value: content!.value.stringRepresentation, operatorString: "equals")
                     ]))
-
-                    let quickLookView = QuickLookView(row: result!.rows.first!)
-                    let popoverViewController = PopoverViewController(with: quickLookView)
-                    popover = NSPopover()
-                    popover!.behavior = .transient
-                    popover!.contentViewController = popoverViewController
-                    popover!.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxX)
-
+                    withAnimation {
+                        quickLookViewModel.row = result!.rows.first!
+                    }                    
                 } catch {
                     print("Couldn't fetch quick lookup query: \(error)")
                 }
