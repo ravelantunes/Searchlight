@@ -84,7 +84,7 @@ struct DatabaseViewer: View {
                     dataTableController.insertRow()
                 }) {
                     Image(systemName: "plus")
-                        .font(.system(size: 12)) // Adjusts the size of the symbol
+                        .font(.system(size: 12))
                 }
                     .buttonStyle(PlainButtonStyle())
                     .accessibilityLabel("Add")
@@ -92,6 +92,30 @@ struct DatabaseViewer: View {
                     .disabled(data.tableName == nil)
                 Text(errorMessage)
                 Spacer()
+                Divider().frame(height: 20)
+                Button(action: {
+                    queryParams = queryParams.previousPage()
+                }) {
+                    Image(systemName: "arrowshape.left.fill")
+                        .font(.system(size: 10)) // Adjusts the size of the symbol
+                }
+                    .buttonStyle(PlainButtonStyle())
+                    .accessibilityLabel("Paginate left")
+                    .padding(3)
+                    .disabled(!hasPreviousPage())
+                Divider().frame(height: 20)
+                Text(pageNumber().codingKey.stringValue)
+                Divider().frame(height: 20)
+                Button(action: {
+                    queryParams = queryParams.nextPage()
+                }) {
+                    Image(systemName: "arrowshape.right.fill")
+                        .font(.system(size: 10)) // Adjusts the size of the symbol
+                }
+                    .buttonStyle(PlainButtonStyle())
+                    .accessibilityLabel("Paginate right")
+                    .padding(.trailing, 10)
+                    .disabled(!hasNextPage())
             }
         }
         .toolbar(content: {
@@ -178,6 +202,19 @@ struct DatabaseViewer: View {
                 self.errorMessage = "Error on delete: \(error)"
             }
         }
+    }
+    
+    private func hasPreviousPage() -> Bool {
+        return queryParams.offset > 0
+    }
+    
+    private func hasNextPage() -> Bool {
+        guard !data.rows.isEmpty else { return false }
+        return data.rows.count == queryParams.limit
+    }
+    
+    private func pageNumber() -> Int {
+        return (queryParams.offset / queryParams.limit) + 1
     }
     
     private func refreshData() {

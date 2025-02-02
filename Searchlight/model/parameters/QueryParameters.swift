@@ -25,20 +25,22 @@ struct Filter: Equatable {
     }
 }
 
-struct QueryParameters: Equatable {
+struct QueryParameters: Equatable, Changeable {
     var schemaName: String?
     var tableName: String?
     var sortColumn: String?
     var sortOrder: SortOrder?
     var limit = 100
+    var offset = 0
     var filters = [Filter]()
     
-
     static func == (lhs: QueryParameters, rhs: QueryParameters) -> Bool {
-        return lhs.tableName == rhs.tableName &&
+        return lhs.schemaName == rhs.schemaName &&
+            lhs.tableName == rhs.tableName &&
             lhs.sortColumn == rhs.sortColumn &&
             lhs.sortOrder == rhs.sortOrder &&
             lhs.limit == rhs.limit &&
+            lhs.offset == rhs.offset &&
             lhs.filters == rhs.filters
     }
     
@@ -92,5 +94,15 @@ struct QueryParameters: Equatable {
         }
         
         return "ORDER BY \(sortColumn) \(sortOrderString)"
+    }
+    
+    func nextPage() -> QueryParameters {
+        let newOffset = offset + limit
+        return changing(path: \.offset, to: newOffset)
+    }
+    
+    func previousPage() -> QueryParameters {
+        let newOffset = max(offset - limit, 0)
+        return changing(path: \.offset, to: newOffset)
     }
 }

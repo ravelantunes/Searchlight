@@ -143,7 +143,8 @@ class PostgresDatabaseAPI: ObservableObject {
             throw NSError(domain: "postgress", code: 0, userInfo: nil)
         }
         
-        let query = "SELECT *, ctid::text FROM \"\(schemaName)\".\"\(tableName)\" \(params.filterStatement()) \(params.sortStatement()) LIMIT 100;"
+        let query = "SELECT *, ctid::text FROM \"\(schemaName)\".\"\(tableName)\" \(params.filterStatement()) \(params.sortStatement()) LIMIT \(params.limit) OFFSET \(params.offset);"        
+        
         async let selectTask = try await postgresConnectionManager.query(query: query)
         async let describeTask = try describeTable(tableName: tableName, schemaName: schemaName)
         
