@@ -194,13 +194,33 @@ class TableViewAppKit: NSView {
         selectedRow = data.rows.indices.contains(clickedRowIndex) ? data.rows[clickedRowIndex] : nil
         selectedCell = selectedRow != nil && selectedRow!.cells.indices.contains(clickedCellIndex) ? selectedRow!.cells[clickedCellIndex] : nil
         
+        let isMultipleRowsSelected = tableView.selectedRowIndexes.count > 0
         let menu = NSMenu(title: "Context Menu")
         menu.autoenablesItems = false
-                
-        let copyValueMenuItem = menu.addItem(withTitle: "Copy Value", action: #selector(copyCellValue), keyEquivalent: "")
-        copyValueMenuItem.isEnabled = selectedCell?.value != nil  // Disable copy value if value is null
-        let copyAsSQLInsertMenuItem = menu.addItem(withTitle: "Copy as SQL Insert", action: #selector(copyAsSQLInsert), keyEquivalent: "")
-        copyAsSQLInsertMenuItem.isEnabled = false
+        
+        let selector = #selector(copyValue)
+        let addFormatOptionsToCopyMenu: (NSMenuItem) -> Void = { menuItem in
+            menuItem.submenu = NSMenu()
+            menuItem.submenu?.addItem(withTitle: "as CSV", action: selector, keyEquivalent: "")
+            menuItem.submenu?.addItem(withTitle: "as SQL", action: selector, keyEquivalent: "")
+            // TODO: implement JSON
+            //menuItem.submenu?.addItem(withTitle: "as JSON", action: selector, keyEquivalent: "")
+        }
+
+        let copyValueMenuItem = menu.addItem(withTitle: "Copy Cell", action: selector, keyEquivalent: "")
+        menu.addItem(NSMenuItem.separator())
+        let copyRowMenuItem = menu.addItem(withTitle: "Copy Row Values", action: nil, keyEquivalent: "")
+        addFormatOptionsToCopyMenu(copyRowMenuItem)
+        
+        if isMultipleRowsSelected {
+            let copyColumnValues = menu.addItem(withTitle: "Copy Column Values", action: selector, keyEquivalent: "")
+            let copyAllValues = menu.addItem(withTitle: "Copy All Values", action: selector, keyEquivalent: "")
+            [copyColumnValues, copyAllValues].forEach { addFormatOptionsToCopyMenu($0) }
+        }
+        
+        // option to add a selected value as filter (ie.: column = value of the selected cell)
+        //let addToFilter = menu.addItem(withTitle: "Add to Filter", action: <#T##Selector?#>, keyEquivalent: <#T##String#>)
+  
         menu.addItem(NSMenuItem.separator())
         _ = menu.addItem(withTitle: "Insert Row", action: #selector(prepareInsertRow), keyEquivalent: "")
         let duplicateRowMenuItem = menu.addItem(withTitle: "Duplicate Row", action: #selector(duplicateRow), keyEquivalent: "")
@@ -209,7 +229,6 @@ class TableViewAppKit: NSView {
         
         // Disable items that are only relevant in the context of a selected row
         if !isClickingOnARow {
-            copyAsSQLInsertMenuItem.isEnabled = false
             copyValueMenuItem.isEnabled = false
             duplicateRowMenuItem.isEnabled = false
             deleteRowMenuItem.isEnabled = false
@@ -388,11 +407,63 @@ class TableViewAppKit: NSView {
         }
     }
     
-    @objc private func copyAsSQLInsert() {
-//        let cellValues = selectedRow!.cells.map { $0.value }
-//        let columnNames = selectedRow!.cells.map { $0.column.name }
-//        let pasteboard = NSPasteboard.general
-//        pasteboard.clearContents()
+    @objc private func copyValue(_ sender: NSMenuItem) {
+
+        let copiedData: [[CellValueRepresentation]]
+        var columnNames: [String] = []
+        if sender.parent == nil {
+            print("copying cell values")
+            copiedData = [[data.rows[actionCoordinate!.row].cells[actionCoordinate!.column!].value]]
+        } else if sender.parent!.title.lowercased().contains("row") {
+            print("copying row values")
+            copiedData = [data.rows[actionCoordinate!.row].cells.map{$0.value}]
+            columnNames = data.columns.map{$0.name}
+        } else if sender.parent!.title.lowercased().contains("column") {
+            print("copying column values")
+            copiedData = data.rows.map{[$0.cells[actionCoordinate!.column!].value]}
+            columnNames = [data.columns[actionCoordinate!.column!].name]
+        } else {
+            print("copying all")
+            copiedData = data.rows.map{$0.cells.map{$0.value}}
+            columnNames = data.columns.map{$0.name}
+        }
+        
+        let stringValue =
+        {
+            if sender.title.lowercased().contains("csv") {
+                print("as csv")
+                return copiedData.map{$0.map{cell in cell.stringRepresentation}.joined(separator: "\t")}.joined(separator: "\n")
+            } else if sender.title.lowercased().contains("json") {
+                print("as json")
+                
+                return ""
+            } else if sender.title.lowercased().contains("sql") {
+                // TODO: validate how this works on editor (no tableName)
+                return generateInsertStatement(tableName: data.tableName!, columns: columnNames, rows: copiedData)
+            }
+            return ""
+        }()
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(stringValue, forType: .string)
+    }
+    
+    // TODO: move this somewhere else
+    private func generateInsertStatement(tableName: String, columns: [String], rows: [[CellValueRepresentation]]) -> String {
+        guard !rows.isEmpty else { return "" }
+        
+        // Build the list of columns (e.g., "col1, col2, col3")
+        let columnsPart = columns.joined(separator: ", ")
+        
+        let values = rows.map { row in
+            let joinedCellValues = row.map{$0.sqlValueString}.joined(separator: ", ")
+            return "(" + joinedCellValues + ")"
+            
+        }.joined(separator: ",\n")
+        
+        // Combine schema and table name in the INSERT statement
+        return "INSERT INTO \"\(tableName)\" (\(columnsPart)) VALUES\n\(values);"
     }
     
     @objc private func duplicateRow() {

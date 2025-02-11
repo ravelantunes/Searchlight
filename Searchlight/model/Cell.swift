@@ -36,6 +36,17 @@ enum CellValueRepresentation: Equatable {
             return CellValueRepresentation.unparseableString
         }
     }
+    
+    // Returns a string in a way that it can be added to a SQL statement.
+    // For example, string values will be enclosed with single-quotes, while null value will be just "NULL"
+    var sqlValueString: String {
+        switch self {
+        case .null:
+            return "NULL"
+        default:
+            return "'\(stringRepresentation)'"
+        }
+    }
 }
 
 struct Cell: Equatable {
@@ -47,22 +58,5 @@ struct Cell: Equatable {
         
     static func == (lhs: Cell, rhs: Cell) -> Bool {
         return lhs.column == rhs.column && lhs.position == rhs.position
-    }
-    
-    // Returns a string representation of the cell's value, taking into consideration the type
-    // For example, if it's a string, it will already return the value enclosed in single quotes
-    // TODO: review if this is still needed, or we can just handle within the enum (1/11/25)
-    func sqlValueString() -> String {
-        // TODO: handle types
-        
-        if value == .null {
-            return "NULL"
-        }
-        
-//        if self.column.type == "string" {
-//            return "'\(value)'"
-//        }
-//        return value
-        return "'\(value.stringRepresentation)'"
     }
 }

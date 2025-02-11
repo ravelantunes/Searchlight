@@ -189,7 +189,7 @@ class PostgresDatabaseAPI: ObservableObject {
         }
         query += ") VALUES ("
         for (index, cell) in row.cells.enumerated() {
-            query += cell.sqlValueString()
+            query += cell.value.sqlValueString
             if index < row.cells.count - 1 {
                 query += ", "
             }
@@ -210,7 +210,7 @@ class PostgresDatabaseAPI: ObservableObject {
         
         var query = "UPDATE \"\(schemaName)\".\"\(tableName)\" SET "
         for (index, cell) in dirtyCells.enumerated() {
-            let cellValue = cell.sqlValueString()
+            let cellValue = cell.value.sqlValueString
             query += "\(cell.column.name) = \(cellValue)"
             if index < row.cells.count - 1 {
                 query += ", "
