@@ -441,7 +441,7 @@ class TableViewAppKit: NSView {
                 // TODO: validate how this works on editor (no tableName)
                 return generateInsertStatement(tableName: data.tableName!, columns: columnNames, rows: copiedData)
             }
-            return ""
+            return copiedData.first!.first!.stringRepresentation
         }()
 
         let pasteboard = NSPasteboard.general
