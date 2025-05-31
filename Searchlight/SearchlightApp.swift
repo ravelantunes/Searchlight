@@ -32,13 +32,13 @@ struct WindowGroupView: View {
                     BannerView(showBanner: $showBanner)
                 }
             } else {
-                let connectionManager = connectionsManagerObservableWrapper.connectionManager.getConnectionManager(configuration: appState.selectedDatabaseConnectionConfiguration)
+                let connectionManager = connectionsManagerObservableWrapper.connectionManager
                 TableSelectionContentView()
-                    .environmentObject(PostgresDatabaseAPI(postgresConnectionManager: connectionManager))
+                    .environmentObject(PostgresDatabaseAPI(connectionManager: connectionManager))
                     .environmentObject(connectionsManagerObservableWrapper)
                     .environmentObject(appState)
                     .navigationSplitViewColumnWidth(min: 200, ideal: 200)
-            }
+            }         
         } detail: {
             if self.appState.selectedDatabase == nil {
                 DatabaseConnectionView()
@@ -46,9 +46,9 @@ struct WindowGroupView: View {
                     .environmentObject(connectionsManagerObservableWrapper)
                     .environmentObject(appState)
             } else {
-                let connectionManager = connectionsManagerObservableWrapper.connectionManager.getConnectionManager(configuration: self.appState.selectedDatabaseConnectionConfiguration)
+                let connectionManager = connectionsManagerObservableWrapper.connectionManager
                 DatabaseViewer()
-                    .environmentObject(PostgresDatabaseAPI(postgresConnectionManager: connectionManager))
+                    .environmentObject(PostgresDatabaseAPI(connectionManager: connectionManager))
                     .environmentObject(connectionsManagerObservableWrapper)
                     .environmentObject(appState)
             }
@@ -56,5 +56,9 @@ struct WindowGroupView: View {
         .navigationTitle(appState.selectedDatabase == nil ? "Searchlight" : "Database: \(appState.selectedDatabase!)")
         .frame(minWidth: 600, minHeight: 450)
         .navigationSplitViewStyle(.prominentDetail)
+        .onChange(of: appState.selectedDatabase, initial: true) { oldValue, newValue in            
+            guard let newValue else { return }
+            try? connectionsManagerObservableWrapper.connectionManager.switchConnectionTo(database: newValue)
+        }
     }
 }

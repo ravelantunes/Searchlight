@@ -23,6 +23,12 @@ struct TableSelectionContentView: View {
         
     var body: some View {
         List(selection: $appState.selectedTable) {
+            Picker("Database", selection: $appState.selectedDatabase) {
+                ForEach(appState.databases, id: \.self) {
+                    Text($0).tag($0)
+                }
+            }.pickerStyle(MenuPickerStyle())
+            
             Section("Tables") {
                 ForEach(schemas) { schema in
                     DisclosureGroup(isExpanded: Binding(get: {
@@ -45,6 +51,9 @@ struct TableSelectionContentView: View {
                 }
             }
         }.onAppear {
+            refreshTables()
+        }
+        .onChange(of: appState.selectedDatabase, initial: true) { oldValue, newValue in
             refreshTables()
         }
         .navigationTitle(appState.selectedDatabase!)

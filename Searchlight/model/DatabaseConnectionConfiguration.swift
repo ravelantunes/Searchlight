@@ -47,6 +47,14 @@ struct DatabaseConnectionConfiguration: Codable, Identifiable, Hashable {
     var connectRightAway: Bool = false    
 }
 
+// Creates a copy of the struct, overriding the database name with the one passed as argument.
+// This is to help with the database change funcionality, where we need to create a new connection.
+extension DatabaseConnectionConfiguration {
+    func copyWithDatabaseChangedTo(database newDatabase: String) -> Self {
+        return DatabaseConnectionConfiguration(name: id, host: host, database: newDatabase, user: user, password: password, ssl: ssl, favorited: favorited)
+    }
+}
+
 class DatabaseConnectionConfigurationWrapper: ObservableObject, Equatable {
     @Published var configuration: DatabaseConnectionConfiguration?
     

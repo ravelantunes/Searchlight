@@ -15,18 +15,18 @@ import PostgresNIO
 import PostgresKit
 
 class PostgresDatabaseAPI: ObservableObject {
-
-    let postgresConnectionManager: PostgresConnectionManager
     
-    required init(postgresConnectionManager: PostgresConnectionManager) {
-        self.postgresConnectionManager = postgresConnectionManager
+    let connectionManager: ConnectionsManager 
+    
+    required init(connectionManager: ConnectionsManager) {
+        self.connectionManager = connectionManager
     }
     
     // Executes a query based on a string.
     // This should only be used from query editor.
     func execute(_ query: String) async throws -> SelectResult {
         // Run the arbitrary query.
-        let rows = try await postgresConnectionManager.query(query: query)
+        let rows = try await connectionManager.connection.query(query: query)
         
         // If no rows were returned, return an empty result.
         guard let firstRow = rows.first else {
@@ -61,9 +61,9 @@ class PostgresDatabaseAPI: ObservableObject {
     }
     
     func listTables() async throws -> [Schema] {
-        let results = try await postgresConnectionManager.query(query: "SELECT table_catalog, table_schema, table_name, table_type FROM information_schema.tables WHERE table_type = 'BASE TABLE' ORDER BY table_name;")
+        let results = try await connectionManager.connection.query(query: "SELECT table_catalog, table_schema, table_name, table_type FROM information_schema.tables WHERE table_type = 'BASE TABLE' ORDER BY table_name;")
         
-        // To prevent modifying list of tables on Schema, we initially just keep track of the list of tables using this map, an create the Schema object at the end        
+        // To prevent modifying list of tables on Schema, we initially just keep track of the list of tables using this map, an create the Schema object at the end
         var schemaMap: [String: [Table]] = [:]
         _ = results.map {row in
             let catalogName = try! row["table_catalog"].decode((String).self)
@@ -78,8 +78,17 @@ class PostgresDatabaseAPI: ObservableObject {
             
             return Table(catalog: catalogName, schema: schemaName, name: tableName, type: tableType)
         }
-        let schemas = schemaMap.map(Schema.init(name:tables:))        
+        let schemas = schemaMap.map(Schema.init(name:tables:))
         return schemas
+    }
+    
+    func listDatabases() async throws -> [String] {
+        let results = try await connectionManager.connection.query(
+            query: "SELECT datname FROM pg_database WHERE datistemplate = false AND datallowconn = true ORDER BY datname;"
+        )
+        return results.map { row in
+            try! row["datname"].decode(String.self)
+        }
     }
     
     func describeTable(tableName: String, schemaName: String) async throws -> [Column] {
@@ -119,7 +128,7 @@ class PostgresDatabaseAPI: ObservableObject {
         ORDER BY
             c.ordinal_position;
         """
-        let results = try await postgresConnectionManager.query(query: describeTableQueryString)
+        let results = try await connectionManager.connection.query(query: describeTableQueryString)
         return results.map { row in
             let name = try! row["column_name"].decode((String).self)
             let type = try! row["data_type"].decode((String).self)
@@ -143,9 +152,9 @@ class PostgresDatabaseAPI: ObservableObject {
             throw NSError(domain: "postgress", code: 0, userInfo: nil)
         }
         
-        let query = "SELECT *, ctid::text FROM \"\(schemaName)\".\"\(tableName)\" \(params.filterStatement()) \(params.sortStatement()) LIMIT \(params.limit) OFFSET \(params.offset);"        
+        let query = "SELECT *, ctid::text FROM \"\(schemaName)\".\"\(tableName)\" \(params.filterStatement()) \(params.sortStatement()) LIMIT \(params.limit) OFFSET \(params.offset);"
         
-        async let selectTask = try await postgresConnectionManager.query(query: query)
+        async let selectTask = try await connectionManager.connection.query(query: query)
         async let describeTask = try describeTable(tableName: tableName, schemaName: schemaName)
         
         // Perform both queries in parallel
@@ -196,7 +205,7 @@ class PostgresDatabaseAPI: ObservableObject {
         }
         query += ") RETURNING ctid;"
         
-        return try await postgresConnectionManager.query(query: query)
+        return try await connectionManager.connection.query(query: query)
     }
     
     func updateRow(schemaName: String, tableName: String, row: SelectResultRow) async throws -> Void {
@@ -219,11 +228,11 @@ class PostgresDatabaseAPI: ObservableObject {
         query += " WHERE ctid = '\(row.id)';"
         print(query)
         
-        _ = try await postgresConnectionManager.query(query: query)
+        _ = try await connectionManager.connection.query(query: query)
     }
     
     func deleteRow(schemaName: String, tableName: String, row: SelectResultRow) async throws -> Void {
-        _ = try await postgresConnectionManager.query(query: "DELETE FROM \"\(schemaName)\".\"\(tableName)\" WHERE ctid = '\(row.id)';")
+        _ = try await connectionManager.connection.query(query: "DELETE FROM \"\(schemaName)\".\"\(tableName)\" WHERE ctid = '\(row.id)';")
     }
     
     private func parseCellValue(data: PostgresData, column: Column) -> CellValueRepresentation {
@@ -247,7 +256,7 @@ class PostgresDatabaseAPI: ObservableObject {
             }
             return CellValueRepresentation.actual(String(data: jsonObject, encoding: .utf8)!)
         case "bool", "boolean":
-            return CellValueRepresentation.actual(data.bool! ? "true" : "false")            
+            return CellValueRepresentation.actual(data.bool! ? "true" : "false")
         case "int2", "int4", "int8", "integer", "smallint", "bigint":
             if let intValue = data.int {
                 return CellValueRepresentation.actual("\(intValue)")

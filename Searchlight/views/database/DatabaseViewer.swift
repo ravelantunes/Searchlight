@@ -162,6 +162,15 @@ struct DatabaseViewer: View {
                     eventMonitor = nil
                 }
             }
+            .task {
+                do {
+                    appState.databases = try await pgApi.listDatabases()
+                } catch {
+                    print("Error happened when trying to fetch list of databases when loading the DatabaseView view for the first time.")
+                    print(error.localizedDescription)
+                    self.errorMessage = "Failed to load list of databases: \(error)"
+                }
+            }
     }
     
     func handleRowUpdate(selectResultRow: SelectResultRow, completion: @escaping (Result<Void, Error>) -> Void) {

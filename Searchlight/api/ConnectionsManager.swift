@@ -12,21 +12,54 @@
 
 import SwiftUI
 
+enum ConnectionManagerError: Error {
+    case connectionNotFound(String)
+}
+
+
 // This class should encapsulate the management of multiple connections (multiple window, switch schema, etc)
-// TODO: refactor this, since this now is kinda redundant and confusing with PostgresConnectionManager
 class ConnectionsManager {
     
-    private var connectionMap: [DatabaseConnectionConfiguration: PostgresConnectionManager] = [:]
+    private var connectionMap: [String: PostgresConnection] = [:]
+    private var selectedConnection: PostgresConnection?
     
-    func getConnectionManager(configuration: DatabaseConnectionConfiguration) -> PostgresConnectionManager {
-        
-        // Tries to get existing connection, if not create new one
-        if let connection = connectionMap[configuration] {
-            return connection
+    // Keep a reference to the first connection to be used to create different connections during database changes
+    private var templateConnection: DatabaseConnectionConfiguration?
+    
+    var connection: PostgresConnection {        
+        guard selectedConnection != nil else {
+            fatalError("No connection has been selected yet")
+        }
+        return selectedConnection!
+    }
+    
+    func initializeConnection(configuration: DatabaseConnectionConfiguration) -> PostgresConnection {
+        if templateConnection == nil {
+            templateConnection = configuration
         }
         
-        let connection = PostgresConnectionManager(configuration: configuration)
-        connectionMap[configuration] = connection
+        let connection = PostgresConnection(configuration: configuration)
+        connectionMap[configuration.database] = connection
+        return connection
+    }
+    
+    func switchConnectionTo(database: String) throws {
+        if let connection = connectionMap[database] {
+            selectedConnection = connection            
+            return
+        }
+        
+        if let newConfiguration = templateConnection?.copyWithDatabaseChangedTo(database: database) {
+            let connection = initializeConnection(configuration: newConfiguration)
+            selectedConnection = connection
+        }
+    }
+    
+    func connection(database: String) throws -> PostgresConnection {                 
+        guard let connection = connectionMap[database] else {
+            // TODO: throw error
+            throw ConnectionManagerError.connectionNotFound(database)
+        }
         return connection
     }
 }

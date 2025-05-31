@@ -1,5 +1,5 @@
 //
-//  PostgresConnectionManager.swift
+//  PostgresConnection.swift
 //  Searchlight
 //
 //  Created by Ravel Antunes on 9/28/24.
@@ -14,7 +14,10 @@ import Foundation
 import PostgresKit
 import CryptoKit
 
-class PostgresConnectionManager {
+// This class was originally named PostgresConnectionManager (since it is managing a pool of connections) but I renamed to PostgresConnection to make the name less redundant with ConnectionsManager.
+// Ideally this class is all we would need, but since changing databases requires to create new connection (and the PostgresConnectionSource requires the database as an argument) the ConnectionsManager
+// helps handling multiple PostgresConnection for different databases.
+class PostgresConnection {
     
     private let configuration: DatabaseConnectionConfiguration
     private let eventLoopGroup: MultiThreadedEventLoopGroup

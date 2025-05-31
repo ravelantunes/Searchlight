@@ -131,7 +131,7 @@ struct DatabaseConnectionView: View {
     }
     
     private func testConnection() {
-        let connectionManager = connectionsManagerObservableWrapper.connectionManager.getConnectionManager(configuration: stateToDatabaseConnection())
+        let connectionManager = connectionsManagerObservableWrapper.connectionManager.initializeConnection(configuration: stateToDatabaseConnection())
         
         connectionValidity = .testing
         Task {
@@ -156,7 +156,8 @@ struct DatabaseConnectionView: View {
     
     private func connect() {
         let connection = stateToDatabaseConnection()
-        let connectionManager = connectionsManagerObservableWrapper.connectionManager.getConnectionManager(configuration: connection)
+        let connectionManager = connectionsManagerObservableWrapper.connectionManager.initializeConnection(configuration: connection)
+        try! connectionsManagerObservableWrapper.connectionManager.switchConnectionTo(database: database)
         connectionValidity = .testing
         Task {
             do {
@@ -169,7 +170,7 @@ struct DatabaseConnectionView: View {
             
             appState.selectedDatabase = database
             appState.selectedDatabaseConnectionConfiguration = connection
-            
+         
             if appState.selectedDatabaseConnectionConfiguration.favorited {
                 FavoritesStore.shared.saveLastSelectedDatabaseName(databaseConnectionConfigurationName: appState.selectedDatabaseConnectionConfiguration.name)
             }
