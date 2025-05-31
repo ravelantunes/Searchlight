@@ -20,9 +20,9 @@ Searchlight is a native macOS, open-source PostgreSQL client designed to be simp
     - [x] Quick search and filter
     - [ ] Pagination
     - [x] Relationship linking on data view
-    - [ ] Copy row as JSON, CSV, SQL, etc
+    - [x] Copy row as JSON, CSV, SQL, etc
     - [ ] Connect in read-only mode
-    - [ ] Browse databases
+    - [x] Browse databases
     - [x] Browse tables
     - [ ] Browse indexes
     - [ ] Browse triggers
@@ -33,7 +33,7 @@ Searchlight is a native macOS, open-source PostgreSQL client designed to be simp
     - [x] Browse schemas
     - [ ] Browse sequences
     - [ ] Support range types
-    
+
 - Data Manipulation
     - [x] Sort Rows
     - [x] Edit Row
@@ -42,7 +42,7 @@ Searchlight is a native macOS, open-source PostgreSQL client designed to be simp
     
 - Database Management
     - [ ] Create/Delete databases
-    - [ ] Switch databases
+    - [x] Switch databases
     - [ ] Create/Delete/Modify tables
     - [ ] Create/Delete/Modify indexes
     - [ ] Create/Delete/Modify triggers    
