@@ -251,10 +251,21 @@ class PostgresDatabaseAPI: ObservableObject {
             }
             return CellValueRepresentation.actual(stringValue)
         case "json", "jsonb":
-            guard let jsonObject = data.json else {
-                return CellValueRepresentation.unparseable
+            guard let rawByteBuffer = data.value else {
+                return .unparseable
             }
-            return CellValueRepresentation.actual(String(data: jsonObject, encoding: .utf8)!)
+            
+            let allBytes = Data(rawByteBuffer.readableBytesView)
+
+            // Postgres json objects comes with U+0001 (Start of Heading) and we need to manually strip it
+            if let braceOffset = allBytes.firstIndex(of: UInt8(ascii: "{")) {
+                let jsonBytes = allBytes.subdata(in: braceOffset..<allBytes.count)
+                if let jsonString = String(data: jsonBytes, encoding: .utf8) {
+                    return CellValueRepresentation.actual(jsonString)
+                }
+            }
+     
+            return CellValueRepresentation.unparseable
         case "bool", "boolean":
             return CellValueRepresentation.actual(data.bool! ? "true" : "false")
         case "int2", "int4", "int8", "integer", "smallint", "bigint":

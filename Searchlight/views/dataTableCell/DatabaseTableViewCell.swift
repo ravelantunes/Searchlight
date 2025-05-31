@@ -44,7 +44,11 @@ class DatabaseTableViewCell: NSTableRowView {
     @IBOutlet weak var utilityButtonsContainerViewWidthConstraint: NSLayoutConstraint!
     
     var isEditing: Bool = false {
-        didSet {            
+        didSet {
+            if let value = content?.value,
+               [.unparseable, .unsupported].contains(value) {
+                isEditing = false
+            }
             textField.isEditable = isEditing
             onContentUpdate()
         }
