@@ -340,7 +340,30 @@ class TableViewAppKit: NSView {
             // If it's an update, utilize ctid
             newSelectResultRow = SelectResultRow(id: self.data.rows[rowBeingEditedIndex].id, cells: cells)
             self.appKitDelegate?.onRowUpdate(selectResultRow: newSelectResultRow) { result in
-                // TODO: implement update callback
+                if let editingIndex = self.rowBeingEditedIndex {
+
+                    // Since everything is immuatable within the SelectResult, we need to make a lot of copies to update the row
+                    // TODO: abstract or encapsulate row/cell updates within SelectResult to uncluter the code here
+                    var editedRowCells = self.data.rows[editingIndex].cells
+                    for updatedCell in newSelectResultRow.cells {
+                        for (index, cell) in editedRowCells.enumerated() {
+                            if updatedCell.column == cell.column {
+                                editedRowCells[index] = updatedCell
+                            }
+                        }
+                    }
+                    
+                    var updatedRows = self.data.rows
+                    updatedRows[editingIndex] = SelectResultRow(id: newSelectResultRow.id, cells: editedRowCells)
+                    
+                    // Rebuild SelectResult with the same columns and updated rows
+                    self.data = SelectResult(columns: self.data.columns, rows: updatedRows)
+
+                    let rowIndexSet = IndexSet(integer: editingIndex)
+                    let allColumns = IndexSet(integersIn: 0..<self.data.columns.count)
+                    self.rowBeingEditedIndex = nil
+                    self.tableView.reloadData(forRowIndexes: rowIndexSet, columnIndexes: allColumns)
+                }
             }
         }
     }
@@ -641,7 +664,8 @@ class Coordinator: NSObject, TableViewAppKitDelegate {
     }
 }
 
-// The controller maps actions from SwiftUI to AppKit view AppKit.
+// The controller maps actions from SwiftUI to AppKit view.
+// Use this to send actions/events to AppKit when it doesn't make sense to just update a data model.
 // SwiftUI will hold an instance of this controller and call methods based on actions taken on SwiftUI, and will pass it to AppKit layer
 class DataTableController: ObservableObject {
     weak var dataTable: TableViewAppKit?

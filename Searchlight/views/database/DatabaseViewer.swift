@@ -178,7 +178,6 @@ struct DatabaseViewer: View {
             do {
                 try await pgApi.updateRow(schemaName: self.appState.selectedTable!.schema, tableName: appState.selectedTable!.name, row: selectResultRow)
                 completion(.success(()))
-                refreshData()
             } catch {
                 completion(.failure(error))
                 print(error.localizedDescription)
