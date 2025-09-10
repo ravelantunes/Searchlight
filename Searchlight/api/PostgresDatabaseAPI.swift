@@ -214,7 +214,10 @@ class PostgresDatabaseAPI: ObservableObject {
         let dirtyCells = row.cells.filter { $0.isDirty && $0.value != .unsupported && $0.value != .unparseable }
         guard !dirtyCells.isEmpty else {
             print("Trying to perform an update, but no dirty cells found")
-            return
+            
+            throw SearchlightAPIError(
+                description: "Nothing to update"           
+            )
         }
         
         var query = "UPDATE \"\(schemaName)\".\"\(tableName)\" SET "
@@ -304,7 +307,17 @@ class PostgresDatabaseAPI: ObservableObject {
     }
 }
 
-struct SearchlightAPIError: Error {
+struct SearchlightAPIError: Error, LocalizedError {
     var description: String
     var columnName: String?
+    
+
+    var errorDescription: String? {
+        if columnName != nil {
+            return "\(description) in column: \(String(describing: columnName))"
+        }
+        
+        return description
+    }
+    
 }

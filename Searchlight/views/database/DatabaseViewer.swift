@@ -181,7 +181,7 @@ struct DatabaseViewer: View {
             } catch {
                 completion(.failure(error))
                 print(error.localizedDescription)
-                self.errorMessage = "Error updating row: \(error)"
+                self.errorMessage = "Error updating row: \(error.localizedDescription)"
             }
         }
     }
@@ -191,7 +191,6 @@ struct DatabaseViewer: View {
             do {
                 _ = try await pgApi.insertRow(schemaName: self.appState.selectedTable!.schema, tableName: appState.selectedTable!.name, row: selectResultRow)
                 completion(.success(()))
-                refreshData()
             } catch {
                 completion(.failure(error))
                 self.errorMessage = "Error on insert: \(error)"
@@ -203,8 +202,7 @@ struct DatabaseViewer: View {
         Task {
             do {
                 try await pgApi.deleteRow(schemaName: self.appState.selectedTable!.schema, tableName: self.appState.selectedTable!.name, row: selectResultRow)
-                completion(.success(()))
-                refreshData()
+                completion(.success(()))                
             } catch {
                 completion(.failure(error))
                 self.errorMessage = "Error on delete: \(error)"

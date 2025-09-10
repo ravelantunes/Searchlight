@@ -29,7 +29,7 @@ struct DatabaseTableViewCellAction {
 
 class DatabaseTableViewCell: NSTableRowView {
     
-    static let CellIdentifier = "DatabaseTableViewCell"
+    static let CellIdentifier = NSUserInterfaceItemIdentifier("DatabaseTableViewCell")
     
     weak var delegate: DatabaseTableViewRowDelegate?
     var pgApi: PostgresDatabaseAPI?
@@ -53,12 +53,15 @@ class DatabaseTableViewCell: NSTableRowView {
             onContentUpdate()
         }
     }
-    
-    static func loadFromNib() -> DatabaseTableViewCell? {
+        
+    static func loadFromNib(api: PostgresDatabaseAPI, delegate: DatabaseTableViewRowDelegate) -> DatabaseTableViewCell? {
         var topLevelObjects: NSArray?
         if Bundle.main.loadNibNamed(NSNib.Name("DatabaseTableViewCell"), owner: self, topLevelObjects: &topLevelObjects) {
-            (topLevelObjects?.firstObject as? DatabaseTableViewCell)?.identifier = NSUserInterfaceItemIdentifier(CellIdentifier)
-            return topLevelObjects?.first(where: { $0 is DatabaseTableViewCell }) as? DatabaseTableViewCell
+            (topLevelObjects?.firstObject as? DatabaseTableViewCell)?.identifier = CellIdentifier
+            let nib = topLevelObjects?.first(where: { $0 is DatabaseTableViewCell }) as? DatabaseTableViewCell
+            nib?.pgApi = api
+            nib?.delegate = delegate
+            return nib
         }
         return nil
     }
