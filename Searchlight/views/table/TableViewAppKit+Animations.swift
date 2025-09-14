@@ -1,5 +1,5 @@
 //
-//  DataTable+Animations.swift
+//  TableViewAppKit+Animations.swift
 //  Searchlight
 //
 //  Created by Ravel Antunes on 9/14/25.
