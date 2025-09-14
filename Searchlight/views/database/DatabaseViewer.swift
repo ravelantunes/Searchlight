@@ -198,11 +198,11 @@ struct DatabaseViewer: View {
         }
     }
     
-    func handleRowDelete(selectResultRow: SelectResultRow, completion: @escaping (Result<Void, Error>) -> Void) {
+    func handleRowDelete(selectResultRow: [SelectResultRow], completion: @escaping (Result<Void, Error>) -> Void) {
         Task {
             do {
-                try await pgApi.deleteRow(schemaName: self.appState.selectedTable!.schema, tableName: self.appState.selectedTable!.name, row: selectResultRow)
-                completion(.success(()))                
+                try await pgApi.deleteRows(schema: self.appState.selectedTable!.schema, table: self.appState.selectedTable!.name, rows: selectResultRow)
+                completion(.success(()))
             } catch {
                 completion(.failure(error))
                 self.errorMessage = "Error on delete: \(error)"

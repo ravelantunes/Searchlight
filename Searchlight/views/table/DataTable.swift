@@ -62,7 +62,7 @@ struct DataTable: NSViewRepresentable {
     // References to blocks that are passed from SwiftUI so they can be called from the Coordinator
     internal var onRowUpdateCallback: ((SelectResultRow, @escaping (Result<Void, any Error>) -> Void) -> Void)?
     internal var onRowInsertCallback: ((SelectResultRow, @escaping (Result<SelectResultRow, any Error>) -> Void) -> Void)?
-    internal var onRowDeleteCallback: ((SelectResultRow, @escaping (Result<Void, any Error>) -> Void) -> Void)?
+    internal var onRowDeleteCallback: (([SelectResultRow], @escaping (Result<Void, any Error>) -> Void) -> Void)?
     internal var onRowDoubleClickCallback: ((SelectResultRow) -> Void)?
     
     @State var data: SelectResult = SelectResult(columns: [], rows: [])
@@ -124,7 +124,7 @@ struct DataTable: NSViewRepresentable {
         return dataTable
     }
     
-    func onRowDelete(perform action: @escaping @MainActor (SelectResultRow, @escaping (Result<Void, Error>) -> Void) -> Void) -> Self {
+    func onRowDelete(perform action: @escaping @MainActor ([SelectResultRow], @escaping (Result<Void, Error>) -> Void) -> Void) -> Self {
         var dataTable = self
         dataTable.onRowDeleteCallback = action
         return dataTable
@@ -142,7 +142,7 @@ protocol TableViewAppKitDelegate: AnyObject {
     func onRowInsert(selectResultRow: SelectResultRow, action: @escaping ((Result<SelectResultRow, any Error>) -> Void))
     func onRowUpdate(selectResultRow: SelectResultRow, action: @escaping ((Result<Void, any Error>) -> Void))
     func onSort(sortDescriptor: [TableDataSortComparator])
-    func onRowDelete(selectResultRow: SelectResultRow, action: @escaping ((Result<Void, any Error>) -> Void))
+    func onRowDelete(selectResultRow: [SelectResultRow], action: @escaping ((Result<Void, any Error>) -> Void))
     func onDoubleClickRow(selectResultRow: SelectResultRow)
 }
 
@@ -167,7 +167,7 @@ class Coordinator: NSObject, TableViewAppKitDelegate {
         representable.sortOrder = sortDescriptor
     }
     
-    func onRowDelete(selectResultRow: SelectResultRow, action: @escaping ((Result<Void, any Error>) -> Void)) {
+    func onRowDelete(selectResultRow: [SelectResultRow], action: @escaping ((Result<Void, any Error>) -> Void)) {
         representable.onRowDeleteCallback?(selectResultRow, action)
     }
     

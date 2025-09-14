@@ -212,7 +212,7 @@ class TableViewAppKit: NSView {
         let isClickingOnARow = clickedRowIndex != -1
 //        selectedRow = data.rows.indices.contains(clickedRowIndex) ? data.rows[clickedRowIndex] : nil
         
-        let isMultipleRowsSelected = tableView.selectedRowIndexes.count > 0
+        let isMultipleRowsSelected = tableView.selectedRowIndexes.count > 1
         let menu = NSMenu(title: "Context Menu")
         menu.autoenablesItems = false
         
@@ -243,7 +243,9 @@ class TableViewAppKit: NSView {
 //        _ = menu.addItem(withTitle: "Insert Row", action: #selector(prepareInsertRow), keyEquivalent: "")
         let duplicateRowMenuItem = menu.addItem(withTitle: "Duplicate Row", action: #selector(duplicateRow), keyEquivalent: "")
         duplicateRowMenuItem.isEnabled = false
-        let deleteRowMenuItem = menu.addItem(withTitle: "Delete Row", action: #selector(deleteRow), keyEquivalent: "")
+        
+        let shouldAddSToDeleteRow = isMultipleRowsSelected ? "s" : ""
+        let deleteRowMenuItem = menu.addItem(withTitle: "Delete Row\(shouldAddSToDeleteRow)", action: #selector(deleteRow), keyEquivalent: "")
         
         // Disable items that are only relevant in the context of a selected row
         if !isClickingOnARow {
@@ -395,12 +397,22 @@ class TableViewAppKit: NSView {
     
     @objc private func deleteRow() {
         guard !readOnly else { return }
-        let row = getRow(coordinate: currentSelection!)!
-        self.appKitDelegate?.onRowDelete(selectResultRow: row) { result in
+        
+        let isMultipleRowsSelected = tableView.selectedRowIndexes.count > 1
+        var coordinates: [Coordinate]
+        
+        if isMultipleRowsSelected {
+            coordinates = tableView.selectedRowIndexes.map { .init(row: $0, column: nil) }
+        } else {
+            coordinates = [currentSelection!]
+        }
+        let rows = coordinates.map { getRow(coordinate: $0)! }
+
+        self.appKitDelegate?.onRowDelete(selectResultRow: rows) { result in
             switch result {
             case .success:
-                self.tableView.removeRows(at: IndexSet(integer: self.currentSelection!.row), withAnimation: .slideUp)
-                print("Row deleted successfully.")
+                let removedRows =  IndexSet(coordinates.map(\.row))
+                self.tableView.removeRows(at: removedRows, withAnimation: .slideUp)                
             case .failure(let error):
                 if let searchlightAPIError = error as? SearchlightAPIError {
                     if let cell = self.tableView.view(atColumn: self.currentSelection!.column!, row: self.currentSelection!.row, makeIfNecessary: false) as? DatabaseTableViewCell {

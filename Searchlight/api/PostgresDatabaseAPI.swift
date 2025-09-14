@@ -262,8 +262,15 @@ class PostgresDatabaseAPI: ObservableObject {
         _ = try await connectionManager.connection.query(query: query)
     }
     
-    func deleteRow(schemaName: String, tableName: String, row: SelectResultRow) async throws -> Void {
-        _ = try await connectionManager.connection.query(query: "DELETE FROM \"\(schemaName)\".\"\(tableName)\" WHERE ctid = '\(row.id)';")
+    func deleteRows(schema: String, table: String, rows: [SelectResultRow]) async throws {
+        let ids = Array(Set(rows.map { $0.id }))
+        guard !ids.isEmpty else { return }
+        let tidList = ids.map { "'\($0)'::tid" }.joined(separator: ",")
+        let sql = """
+        DELETE FROM "\(schema)"."\(table)"
+        WHERE ctid IN (\(tidList));
+        """
+        try await connectionManager.connection.query(query: sql)
     }
     
     private func parseCellValue(data: PostgresData, column: Column) -> CellValueRepresentation {
