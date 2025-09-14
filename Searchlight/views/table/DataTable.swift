@@ -21,7 +21,7 @@ enum EditingMode: Equatable {
 }
 
 
-// Represents something similar to an indexPath, so it can keep reference to specific points in the table
+// Similar to IndexPath, representing row/column pair, but simpler to use
 struct Coordinate: Equatable {
     let row: Int
     let column: Int?
@@ -46,17 +46,15 @@ class TableViewAppKit: NSView {
     var errorPopover: NSView?
     var pgApi: PostgresDatabaseAPI?
     
-    private var mode: EditingMode = .none
-                
+    internal var currentEditMode: EditingMode = .none
+    private var currentSelection: Coordinate?
+    
     // Animation related
     private var previousOffset: CGFloat = 0.0 // Used to detect if user scrolling up or down, so we know when to animate
     private var shouldAnimateCells = true
     private var maxAnimatedIndex = 0 // Keep index to prevent re-animating cell already loaded
-        
-    private var currentEditMode: EditingMode = .none
-    private var currentSelection: Coordinate?
     
-    // I don't remember why I moved some of this initialization here
+    // I don't remember why I moved some of this initialization here. It seems to be only used in one place at the moment
     func commonInit() {
         tableView.delegate = self
         tableView.dataSource = self
@@ -104,13 +102,22 @@ class TableViewAppKit: NSView {
         // However, we cache since sometimes we might need to use the former edit mode
         let cachedCurrentEditMode = currentEditMode
         currentEditMode = to
+        print("Transitioning from \(cachedCurrentEditMode) to \(to)")
         
         switch (cachedCurrentEditMode, to) {
         case (.inserting, .none):
-            tableView.removeRows(at: IndexSet(integer: data.rows.count))
+            if self.data.rows.count < self.tableView.numberOfRows {
+                // If data < rows displayed, means we cancelled insert without a save
+                tableView.removeRows(at: IndexSet(integer: data.rows.count))
+            } else {
+                tableView.reloadData(forRowIndexes: IndexSet(integer: data.rows.count-1), columnIndexes: IndexSet(0..<self.tableView.numberOfColumns))
+                self.flashRow(data.rows.count-1, color: .green)
+            }
+            tableView.window?.endEditing(for: nil)
             currentSelection = nil
             break
         case (.updating(let coordinate), .none):
+            tableView.window?.makeFirstResponder(nil)
             tableView.reloadData(forRowIndexes: IndexSet(integer: coordinate.row), columnIndexes: IndexSet(integersIn: 0..<tableView.numberOfColumns))
             currentSelection = nil
             break
@@ -141,6 +148,11 @@ class TableViewAppKit: NSView {
             transitionTo(to: .updating(coordinate: currentSelection!))
         } else {
             transitionTo(to: .inserting)
+        }
+        
+        // This is used on instances where we can show DataTable embedded in popover and want to callback a selection
+        if let appKitDelegate = appKitDelegate, let row = getRow(coordinate: currentSelection) {
+            appKitDelegate.onDoubleClickRow(selectResultRow: row)
         }
     }
     
@@ -203,7 +215,8 @@ class TableViewAppKit: NSView {
     }
     
     func numberOfRows(in tableView: NSTableView) -> Int {
-        return data.rows.count + (currentEditMode == .inserting ? 1 : 0)
+        let rowCount = data.rows.count + (currentEditMode == .inserting ? 1 : 0)
+        return rowCount
     }
     
     override func rightMouseDown(with event: NSEvent) {
@@ -282,7 +295,6 @@ class TableViewAppKit: NSView {
             } else {
                 representationValue = .actual(stringValue!)
             }
-            print("Value \(representationValue)")
             
             // Compare extracted value from text field to the current cell value
             guard cellView.content!.value != representationValue else { continue }
@@ -310,12 +322,20 @@ class TableViewAppKit: NSView {
             self.appKitDelegate?.onRowInsert(selectResultRow: newSelectResultRow) { result in
                 switch result {
                 case .success:
-                    print("Row inserted successfully.")                                    
-                    let rowIndexSet = IndexSet(integer: currentSelection.row)
-                    let allColumns = IndexSet(0..<self.data.columns.count)
-                    self.tableView.reloadData(forRowIndexes: rowIndexSet, columnIndexes: allColumns)
+                    
+                    let newRow = try! result.get()
+                    var currentRows = self.data.rows
+                    currentRows.append(newRow)
+                    
+                    let updatedData = SelectResult(
+                        id: self.data.id,
+                        columns: self.data.columns,
+                        rows: currentRows,
+                        tableName: self.data.tableName
+                    )
+                    self.data = updatedData
                     self.transitionTo(to: .none)
-                    self.flashRow(currentSelection.row, color: .green)
+                    
                 case .failure(let error):
                     if let searchlightAPIError = error as? SearchlightAPIError {
                         
@@ -360,6 +380,7 @@ class TableViewAppKit: NSView {
 
                     // Create a new SelectResult with the updated rows
                     let updatedData = SelectResult(
+                        id: self.data.id,
                         columns: self.data.columns,
                         rows: updatedRows,
                         tableName: self.data.tableName
@@ -375,73 +396,6 @@ class TableViewAppKit: NSView {
                     self.flashRow(currentSelection.row, color: .red)
                     print("Error updating row: \(error)")
                     break
-                }
-            }
-        }
-    }
-
-
-    /// Subtle, non-intrusive visual feedback for a successfully updated row.
-    /// If the row is visible, it overlays a tinted view that quickly fades out.
-    ///
-    /// - Parameters:
-    ///   - row: Row index to flash.
-    ///   - color: Base tint color (alpha is applied below).
-    ///   - alpha: Max alpha for the overlay at the peak of the animation.
-    ///   - fadeIn: Duration of the quick fade-in.
-    ///   - hold: Time to keep the overlay before fading out.
-    ///   - fadeOut: Duration of the fade-out.
-    ///   - cornerRadius: Corner radius for the overlay.
-    ///   - inset: Inset inside the row bounds so it doesn’t butt up against edges.
-    ///   TODO: move to an extension
-    func flashRow(_ row: Int,
-                  color: NSColor = .controlAccentColor,
-                  alpha: CGFloat = 0.25,
-                  fadeIn: TimeInterval = 0.08,
-                  hold: TimeInterval = 0.20,
-                  fadeOut: TimeInterval = 0.45,
-                  cornerRadius: CGFloat = 6,
-                  inset: CGFloat = 2) {
-        guard row >= 0, row < tableView.numberOfRows else { return }
-
-        // Only animate if the row view is currently realized/visible.
-        guard let rowView = tableView.rowView(atRow: row, makeIfNecessary: false) else { return }
-
-        // Create a lightweight overlay that tracks the row's size.
-        let overlay = NSView(frame: rowView.bounds.insetBy(dx: inset, dy: inset))
-        overlay.wantsLayer = true
-        overlay.translatesAutoresizingMaskIntoConstraints = false
-
-        if overlay.layer == nil {
-            overlay.wantsLayer = true
-        }
-        overlay.layer?.backgroundColor = color.withAlphaComponent(alpha).cgColor
-        overlay.layer?.cornerRadius = cornerRadius
-        overlay.alphaValue = 0
-
-        rowView.addSubview(overlay)
-
-        // Pin overlay to rowView with insets so it resizes with layout changes.
-        NSLayoutConstraint.activate([
-            overlay.leadingAnchor.constraint(equalTo: rowView.leadingAnchor, constant: inset),
-            overlay.trailingAnchor.constraint(equalTo: rowView.trailingAnchor, constant: -inset),
-            overlay.topAnchor.constraint(equalTo: rowView.topAnchor, constant: inset),
-            overlay.bottomAnchor.constraint(equalTo: rowView.bottomAnchor, constant: -inset),
-        ])
-
-        // Animate: quick fade-in, brief hold, smooth fade-out, then remove.
-        DispatchQueue.main.async {
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = fadeIn
-                overlay.animator().alphaValue = 1.0
-            } completionHandler: {
-                DispatchQueue.main.asyncAfter(deadline: .now() + hold) {
-                    NSAnimationContext.runAnimationGroup { ctx in
-                        ctx.duration = fadeOut
-                        overlay.animator().alphaValue = 0.0
-                    } completionHandler: {
-                        overlay.removeFromSuperview()
-                    }
                 }
             }
         }
@@ -598,7 +552,7 @@ struct DataTable: NSViewRepresentable {
 
     // References to blocks that are passed from SwiftUI so they can be called from the Coordinator
     internal var onRowUpdateCallback: ((SelectResultRow, @escaping (Result<Void, any Error>) -> Void) -> Void)?
-    internal var onRowInsertCallback: ((SelectResultRow, @escaping (Result<Void, any Error>) -> Void) -> Void)?
+    internal var onRowInsertCallback: ((SelectResultRow, @escaping (Result<SelectResultRow, any Error>) -> Void) -> Void)?
     internal var onRowDeleteCallback: ((SelectResultRow, @escaping (Result<Void, any Error>) -> Void) -> Void)?
     internal var onRowDoubleClickCallback: ((SelectResultRow) -> Void)?
     
@@ -631,11 +585,10 @@ struct DataTable: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: TableViewAppKit, context: Context) {
-        // This gets called whenever SwiftUI things that this component needs to be re-rendered.
+        // This gets called whenever SwiftUI thinks this component needs to be re-rendered.
         guard nsView.data.id != data.id else {
             return
         }
-        
         nsView.data = data
         nsView.pgApi = pgApi        
         nsView.sortOrder = sortOrder
@@ -656,7 +609,7 @@ struct DataTable: NSViewRepresentable {
         return dataTable
     }
   
-    func onRowInsert(perform action: @escaping @MainActor (SelectResultRow, @escaping (Result<Void, Error>) -> Void) -> Void) -> Self {
+    func onRowInsert(perform action: @escaping @MainActor (SelectResultRow, @escaping (Result<SelectResultRow, Error>) -> Void) -> Void) -> Self {
         var dataTable = self
         dataTable.onRowInsertCallback = action
         return dataTable
@@ -677,7 +630,7 @@ struct DataTable: NSViewRepresentable {
 
 // Protocol for object that will receive actions from TableViewAppKit
 protocol TableViewAppKitDelegate: AnyObject {
-    func onRowInsert(selectResultRow: SelectResultRow, action: @escaping ((Result<Void, any Error>) -> Void))
+    func onRowInsert(selectResultRow: SelectResultRow, action: @escaping ((Result<SelectResultRow, any Error>) -> Void))
     func onRowUpdate(selectResultRow: SelectResultRow, action: @escaping ((Result<Void, any Error>) -> Void))
     func onSort(sortDescriptor: [TableDataSortComparator])
     func onRowDelete(selectResultRow: SelectResultRow, action: @escaping ((Result<Void, any Error>) -> Void))
@@ -697,7 +650,7 @@ class Coordinator: NSObject, TableViewAppKitDelegate {
         representable.onRowUpdateCallback?(selectResultRow, action)
     }
     
-    func onRowInsert(selectResultRow: SelectResultRow, action: @escaping ((Result<Void, any Error>) -> Void)) {
+    func onRowInsert(selectResultRow: SelectResultRow, action: @escaping ((Result<SelectResultRow, any Error>) -> Void)) {
         representable.onRowInsertCallback?(selectResultRow, action)
     }
     
@@ -721,81 +674,5 @@ class DataTableController: ObservableObject {
     weak var dataTable: TableViewAppKit?
     func insertRow() {
         dataTable?.transitionTo(to: .inserting)
-    }
-}
-
-extension TableViewAppKit: NSTableViewDelegate, NSTableViewDataSource {
-    
-    func tableView(_ tableView: NSTableView, sizeToFitWidthOfColumn column: Int) -> CGFloat {
-//        let cell = tableView.makeView(withIdentifier: NSUserInterfaceItemIdentifier(DatabaseTableViewCell.CellIdentifier), owner: self) as? DatabaseTableViewCell
-        return 300
-    }
-    
-    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard let column = data.columns.first(where: { $0.name == tableColumn?.identifier.rawValue }) else {
-            fatalError("Column not found. This should not happen")
-        }
-                
-        guard let cellView = tableView.makeView(withIdentifier: DatabaseTableViewCell.CellIdentifier, owner: self) as? DatabaseTableViewCell
-            ?? DatabaseTableViewCell.loadFromNib(api: pgApi!, delegate: self)
-        else {
-            fatalError("Cell view is nil")
-        }
-        
-        let isEditable = {
-            if case .updating(let coordinate) = currentEditMode {
-                return coordinate.row == row
-            }
-            if currentEditMode == .inserting {
-                return true
-            }
-            return false
-        }()
-        
-        let cellContent = {
-            if self.currentEditMode == .inserting && row == self.data.rows.count {
-                return Cell(column: column, value: .actual(""), position: column.position)
-            }
-            return self.getCell(coordinate: Coordinate(row: row, column: column.position))!
-        }()
-        
-//        if isEditable && self.currentSelection!.column == column.position {
-//            cellView.textField.becomeFirstResponder()
-//        }
-                    
-        cellView.setContent(content: cellContent, editable: isEditable)
-        cellView.delegate = self
-        return cellView
-    }
-
-    func tableView(_ tableView: NSTableView, shouldEdit tableColumn: NSTableColumn?, row: Int) -> Bool {
-        return true
-    }
-    
-    func tableViewSelectionDidChange(_ notification: Notification) {
-        guard let tableView = notification.object as? NSTableView else { return }
-        let selectedIndex = tableView.selectedRowIndexes
-        
-        // Check if selected indexes are empty
-        // TODO: Review why I needed this. It is calling submitEditing on a delete animation
-//        if selectedIndex.count == 0 {
-//            submitEditing()
-//            return
-//        }
-    }
-    
-    func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
-        guard tableView.sortDescriptors.count > 0 else {
-            return
-        }
-            
-        // TODO: I think there's a crash when changing tables with sortDescriptors selected, because the table column names are not the same
-        let sortDescriptor = tableView.sortDescriptors.first!
-        let columnName = sortDescriptor.key!
-        let ascending = sortDescriptor.ascending
-        let columnIndex = data.columns.firstIndex { $0.name == columnName }
-        let sort = TableDataSortComparator(columnKey: columnName, columnIndex: columnIndex!, order: ascending ? .forward : .reverse)
-        
-        self.appKitDelegate?.onSort(sortDescriptor: [sort])
     }
 }

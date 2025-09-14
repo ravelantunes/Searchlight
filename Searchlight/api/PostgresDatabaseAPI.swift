@@ -187,25 +187,53 @@ class PostgresDatabaseAPI: ObservableObject {
         return SelectResult(columns: columns, rows: mappedToSelectResultRow, tableName: params.tableName)
     }
     
-    func insertRow(schemaName: String, tableName: String, row: SelectResultRow) async throws -> [Any] {
-        
-        var query = "INSERT INTO \"\(schemaName)\".\"\(tableName)\" ("
+    func insertRow(schemaName: String, tableName: String, row: SelectResultRow) async throws -> SelectResultRow {
+        // Build INSERT statement
+        var columnsPart = ""
+        var valuesPart = ""
         for (index, cell) in row.cells.enumerated() {
-            query += cell.column.name
+            columnsPart += cell.column.name
+            valuesPart += cell.value.sqlValueString
             if index < row.cells.count - 1 {
-                query += ", "
+                columnsPart += ", "
+                valuesPart += ", "
             }
         }
-        query += ") VALUES ("
-        for (index, cell) in row.cells.enumerated() {
-            query += cell.value.sqlValueString
-            if index < row.cells.count - 1 {
-                query += ", "
-            }
-        }
-        query += ") RETURNING ctid;"
         
-        return try await connectionManager.connection.query(query: query)
+        // Return all columns plus ctid so we can build the SelectResultRow id
+        let query = "INSERT INTO \"\(schemaName)\".\"\(tableName)\" (\(columnsPart)) VALUES (\(valuesPart)) RETURNING *, ctid::text;"
+
+        // Run INSERT and describe table in parallel (so we can map cells consistently)
+        async let insertTask = try await connectionManager.connection.query(query: query)
+        
+        // TODO: figure out how to re-use the result from select, so we don't do an additional describe here
+        async let describeTask = try describeTable(tableName: tableName, schemaName: schemaName)
+
+        let insertRows = try await insertTask
+        var columns = try await describeTask
+        
+        // Append synthetic ctid column to align with RETURNING list
+        columns.insert(Column(name: "ctid", type: "ctid", typeName: "ctid", typeCategory: "b", position: columns.count, foreignSchemaName: nil, foreignTableName: nil, foreignColumnName: nil), at: columns.count)
+
+        guard let returned = insertRows.first else {
+            // Should not happen because of RETURNING, but handle defensively
+            throw SearchlightAPIError(description: "Failed to insert row. INSERT statement returned no rows.")
+        }
+
+        // Map the single returned row to our cell representations
+        let mappedCells: [Cell] = columns.enumerated().map { (columnIndex, column) in
+            let cellValue = parseCellValue(data: returned[data: column.name], column: column)
+            return Cell(column: column, value: cellValue, position: 0)
+        }
+
+        // Extract ctid as id and drop it from the visible cells
+        guard let ctidCell = mappedCells.last, ctidCell.column.name == "ctid" else {
+            fatalError("ctid column not found in INSERT RETURNING")
+        }
+        let visibleCells = mappedCells.dropLast().map { $0 }
+        let insertedRow = SelectResultRow(id: ctidCell.value.stringRepresentation, cells: visibleCells)
+
+        return insertedRow
     }
     
     func updateRow(schemaName: String, tableName: String, row: SelectResultRow) async throws -> Void {

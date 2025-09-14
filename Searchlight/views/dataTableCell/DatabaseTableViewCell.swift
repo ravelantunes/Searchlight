@@ -50,7 +50,9 @@ class DatabaseTableViewCell: NSTableRowView {
                 isEditing = false
             }
             textField.isEditable = isEditing
-            onContentUpdate()
+
+            // Is this really necessary here? It messes up with tab/backtab
+            // onContentUpdate()
         }
     }
         

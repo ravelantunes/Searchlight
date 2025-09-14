@@ -14,10 +14,20 @@ import Foundation
 
 struct SelectResult: Identifiable {
         
-    let id = UUID()
+    let id: UUID
     let columns: [Column]
     let rows: [SelectResultRow]
     var tableName: String?
+    
+    init(id: UUID = UUID(),
+           columns: [Column],
+           rows: [SelectResultRow],
+           tableName: String? = nil) {
+          self.id = id
+          self.columns = columns
+          self.rows = rows
+          self.tableName = tableName
+      }
     
     func dataAsDictionary() -> [[String: String]] {
         return self.rows.map { row in

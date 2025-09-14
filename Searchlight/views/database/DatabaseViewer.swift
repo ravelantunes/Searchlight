@@ -186,11 +186,11 @@ struct DatabaseViewer: View {
         }
     }
 
-    func handleRowInsert(selectResultRow: SelectResultRow, completion: @escaping (Result<Void, Error>) -> Void) {
+    func handleRowInsert(selectResultRow: SelectResultRow, completion: @escaping (Result<SelectResultRow, Error>) -> Void) {
         Task {
             do {
-                _ = try await pgApi.insertRow(schemaName: self.appState.selectedTable!.schema, tableName: appState.selectedTable!.name, row: selectResultRow)
-                completion(.success(()))
+                let selectResultRow = try await pgApi.insertRow(schemaName: self.appState.selectedTable!.schema, tableName: appState.selectedTable!.name, row: selectResultRow)
+                completion(.success((selectResultRow)))
             } catch {
                 completion(.failure(error))
                 self.errorMessage = "Error on insert: \(error)"
