@@ -195,11 +195,6 @@ class TableViewAppKit: NSView {
         tableViewHeader.data = data
     }
     
-    func numberOfRows(in tableView: NSTableView) -> Int {
-        let rowCount = data.rows.count + (currentEditMode == .inserting ? 1 : 0)
-        return rowCount
-    }
-    
     override func rightMouseDown(with event: NSEvent) {
         guard !readOnly else { return }
         
@@ -412,6 +407,19 @@ class TableViewAppKit: NSView {
             switch result {
             case .success:
                 let removedRows =  IndexSet(coordinates.map(\.row))
+                
+                // Remove row from data object
+                var currentRows = self.data.rows
+                currentRows.remove(atOffsets: removedRows)
+                
+                let updatedData = SelectResult(
+                    id: self.data.id,
+                    columns: self.data.columns,
+                    rows: currentRows,
+                    tableName: self.data.tableName
+                )
+                self.data = updatedData                
+                
                 self.tableView.removeRows(at: removedRows, withAnimation: .slideUp)                
             case .failure(let error):
                 if let searchlightAPIError = error as? SearchlightAPIError {

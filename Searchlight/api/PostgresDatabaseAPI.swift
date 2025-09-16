@@ -129,13 +129,17 @@ class PostgresDatabaseAPI: ObservableObject {
             c.ordinal_position;
         """
         let results = try await connectionManager.connection.query(query: describeTableQueryString)
-        return results.map { row in
+        return results.enumerated().map { index, row in
             let name = try! row["column_name"].decode((String).self)
             let type = try! row["data_type"].decode((String).self)
             let typeName = try! row["udt_name"].decode((String).self)
             // let typeCategory = try! row["typtype"].decode((String).self) TODO: fix this
-            let typeCategory = "b"
-            let position = try! row["ordinal_position"].decode((Int).self)-1 // Convert to 0-index base, since ordinal position starts at 1
+            let typeCategory = "b"            
+            // Position in this app assumes 0-based, sequential position to render columns and UI elements
+            // However, I learned that Postgres doesn't guarantee it to be contiguous (i.e.: if column is removed)
+            // So we use index from enumeration, which works similarly as long as it's sorted by ordinal position
+            // let position = try! row["ordinal_position"].decode((Int).self)-1 // Convert to 0-index base, since ordinal position starts at 1
+            let position = index
             let foreignColumnName = try! row["foreign_column_name"].decode((String?).self)
             let foreignTableName = try! row["foreign_table_name"].decode((String?).self)
             let foreignSchemaName = try! row["foreign_schema_name"].decode((String?).self)

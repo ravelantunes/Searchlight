@@ -14,6 +14,11 @@ import AppKit
 
 extension TableViewAppKit: NSTableViewDelegate, NSTableViewDataSource {
     
+    func numberOfRows(in tableView: NSTableView) -> Int {
+        let rowCount = data.rows.count + (currentEditMode == .inserting ? 1 : 0)
+        return rowCount
+    }
+    
     func tableView(_ tableView: NSTableView, sizeToFitWidthOfColumn column: Int) -> CGFloat {
         return 300
     }
@@ -43,8 +48,22 @@ extension TableViewAppKit: NSTableViewDelegate, NSTableViewDataSource {
             if self.currentEditMode == .inserting && row == self.data.rows.count {
                 return Cell(column: column, value: .actual(""), position: column.position)
             }
-            return self.getCell(coordinate: Coordinate(row: row, column: column.position))!
+            guard let cellContent = self.getCell(coordinate: Coordinate(row: row, column: column.position)) else {
+                print("Table \(data.tableName) Current data dimensions: \(data.rows.count) rows, \(data.columns.count) columns. Is editable: \(isEditable)")
+                fatalError("Fatal failure on viewFor while calling getCell for row \(row) column \(column.position)")
+            }
+            return cellContent
         }()
+        
+        let isCurrentSelection = currentSelection != nil && currentSelection!.row == row && currentSelection!.column == column.position
+        
+        // If it's currentSelection view being rendered, queues it to become first responder
+        if isCurrentSelection && isEditable {
+            // Dispatch so makeFirstResponder happens after this method completes and cell is in view
+            DispatchQueue.main.async {
+                self.window!.makeFirstResponder(cellView.textField)
+            }
+        }
         
         cellView.setContent(content: cellContent, editable: isEditable)
         cellView.delegate = self

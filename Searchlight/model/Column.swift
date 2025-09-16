@@ -36,6 +36,8 @@ struct Column: Equatable, Identifiable, Comparable, Hashable {
     let type: String
     let typeName: String
     let typeCategory: String
+    
+    // Interal, 0-index contiguous position of the row. Not to be confused with pg internal ordinal_position
     let position: Int
     let foreignTableName: String?
     let foreignColumnName: String?
