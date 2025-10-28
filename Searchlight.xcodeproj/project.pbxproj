@@ -13,6 +13,7 @@
 
 /* Begin PBXFileReference section */
 		80AF59EF2D3DA5D80058448D /* Searchlight.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Searchlight.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		80C377442EB05E350080ECB0 /* SQLParser */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = SQLParser; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -46,6 +47,7 @@
 		80AF59E62D3DA5D80058448D = {
 			isa = PBXGroup;
 			children = (
+				80C377442EB05E350080ECB0 /* SQLParser */,
 				80AF59F12D3DA5D80058448D /* Searchlight */,
 				80AB53E02D3DA7A700240422 /* Frameworks */,
 				80AF59F02D3DA5D80058448D /* Products */,
