@@ -122,7 +122,7 @@ struct LookupView: View {
             do {
                 
                 let params = QueryParameters(schemaName: lookUpViewModel.targetSchema, tableName: lookUpViewModel.targetTable, filters: [
-                    lookupValue == "" ? nil : Filter(column: selectedColumn!.name, value: lookupValue, operatorString: "starts with")
+                    lookupValue == "" ? nil : Filter(column: selectedColumn!.name, value: lookupValue, operation: .startsWith)
                 ].compactMap { $0 })
                 data = try await self.pgApi.select(params: params)
             }

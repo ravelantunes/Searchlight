@@ -16,12 +16,12 @@ import Foundation
 struct Filter: Equatable {
     var column: String
     var value: String
-    var operatorString: String
+    var operation: FilterOperator
     
     static func == (lhs: Filter, rhs: Filter) -> Bool {
         return lhs.column == rhs.column &&
             lhs.value == rhs.value &&
-            lhs.operatorString == rhs.operatorString
+            lhs.operation == rhs.operation
     }
 }
 
@@ -53,25 +53,36 @@ struct QueryParameters: Equatable, Changeable {
         for (index, filter) in filters.enumerated() {
             
             var filterValue = filter.value
+            var skipFilterValue = false
             let operatorString = {
-                switch filter.operatorString {
-                case "equals":
+                switch filter.operation {
+                case .equals:
                     return "="
-                case "contains":
+                case .contains:
                     filterValue = "%\(filter.value)%"
                     return "LIKE"                    
-                case "starts with":
+                case .startsWith:
                     filterValue = "\(filter.value)%"
                     return "LIKE"
-                case "ends with":
+                case .endsWith:
                     filterValue = "%\(filter.value)"
                     return "LIKE"
+                case .isNull:
+                    skipFilterValue = true
+                    return "IS NULL"
+                case .isNotNull:
+                    skipFilterValue = true
+                    return "IS NOT NULL"
                 default:
-                    return filter.operatorString
+                    return filter.operation.rawValue
                 }
             }()
                                     
-            filterStatement += " \(filter.column) \(operatorString) '\(filterValue)'"
+            filterStatement += " \(filter.column) \(operatorString)"
+            
+            if !skipFilterValue {
+                filterStatement += " '\(filterValue)'"
+            }                        
             
             if index < filters.count - 1 {
                 filterStatement += " AND"

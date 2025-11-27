@@ -12,24 +12,26 @@
 
 import SwiftUI
 
-struct FilterOperator: Identifiable {
-    let id: String
-    let operatorString: String
+enum FilterOperator: String, CaseIterable, Identifiable {
+    case equals = "equals"
+    case contains = "contains"
+    case isNull = "is NULL"
+    case isNotNull = "is not NULL"
+    case greaterThan = "greater than"
+    case lessThan = "less than"
+    case startsWith = "starts with"
+    case endsWith = "ends with"
+    
+    var id: String { rawValue }
 
-    init(_ operatorString: String) {
-        self.id = operatorString
-        self.operatorString = operatorString
-    }
 }
 
 struct TableFilter: View {
     
     @State private var selectedFilterColumn: Column?
-    @State private var selectedFilterOperator: String = ""
+    @State private var selectedFilterOperator: FilterOperator = .equals
     @State private var selectedFilterValue: String = ""
-    @State var operationOptions = [
-        FilterOperator("equals")
-    ]
+    @State var operationOptions: [FilterOperator] = []
 
     var columns: [Column] = []
     @Binding var queryParams: QueryParameters
@@ -37,46 +39,63 @@ struct TableFilter: View {
     var body: some View {
         HStack() {
             Picker("", selection: $selectedFilterColumn) {
+                // Hidden placeholder to satisfy SwiftUI’s requirement
+                Text("").tag(nil as Column?)
+                
                 ForEach(columns) { column in
                     Text(column.name).tag(column)
                 }
             }
             Picker("", selection: $selectedFilterOperator) {
+                // Hidden placeholder to satisfy SwiftUI’s requirement
+                Text("").tag(nil as FilterOperator?)
+                
                 ForEach(operationOptions) { option in
-                    Text(option.operatorString).tag(option.operatorString)
+                    Text(option.rawValue)
+                        .tag(option)
                 }
             }
             .frame(width: 120)
             TextField("", text: $selectedFilterValue)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit {
-                    self.queryParams = QueryParameters(schemaName: queryParams.schemaName, tableName: queryParams.tableName, sortColumn: queryParams.sortColumn, sortOrder: queryParams.sortOrder, limit: queryParams.limit, filters: [Filter(column: selectedFilterColumn!.name, value: self.selectedFilterValue, operatorString: selectedFilterOperator)])
+                    submit()
                 }
+                .disabled($selectedFilterOperator.wrappedValue == .isNull || $selectedFilterOperator.wrappedValue == .isNotNull)
+            Button("Apply") {
+                submit()
+            }
             Button("Clear") {
                 resetFiltersUI()
                 self.queryParams = QueryParameters(schemaName: queryParams.schemaName, tableName: queryParams.tableName, sortColumn: queryParams.sortColumn, sortOrder: queryParams.sortOrder, limit: queryParams.limit, filters: [])
-            }
+            }.buttonStyle(.accessoryBar)
         }
         .padding(8)
         .onChange(of: columns) {
             selectedFilterColumn = columns.first
-            selectedFilterOperator = operationOptions.first!.operatorString
+            if !operationOptions.isEmpty {
+                selectedFilterOperator = operationOptions.first!
+            }
         }
         .onChange(of: selectedFilterColumn) { oldColumn, newColumn in
             switch newColumn?.typeName {
             case "timestamp":
-                operationOptions = [FilterOperator("equals"), FilterOperator("greaterThan"), FilterOperator("lessThan")]
+                operationOptions = [.equals, .greaterThan, .lessThan]
             case "varchar", "uuid", "text":
-                operationOptions = [FilterOperator("equals"), FilterOperator("contains")]
+                operationOptions = [.equals, .contains, .isNull, .isNotNull]
             default:
-                operationOptions = [FilterOperator("equals")]
+                operationOptions = [.equals, .isNull, .isNotNull]
             }
         }        
     }
     
+    private func submit() {
+        self.queryParams = QueryParameters(schemaName: queryParams.schemaName, tableName: queryParams.tableName, sortColumn: queryParams.sortColumn, sortOrder: queryParams.sortOrder, limit: queryParams.limit, filters: [Filter(column: selectedFilterColumn!.name, value: self.selectedFilterValue, operation: selectedFilterOperator)])
+    }
+    
     private func resetFiltersUI() {
         self.selectedFilterColumn = nil
-        self.selectedFilterOperator = ""
+        self.selectedFilterOperator = .equals
         self.selectedFilterValue = ""
     }
 }

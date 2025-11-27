@@ -23,11 +23,10 @@ struct TableSelectionContentView: View {
         
     var body: some View {
         List(selection: $appState.selectedTable) {
-            Picker("Database", selection: $appState.selectedDatabase) {
-                ForEach(appState.databases, id: \.self) {
-                    Text($0).tag($0)
-                }
-            }.pickerStyle(MenuPickerStyle())
+            DatabasePicker(
+                selectedDatabase: $appState.selectedDatabase,
+                databases: appState.databases
+            )          
             
             Section("Tables") {
                 ForEach(schemas) { schema in
@@ -103,6 +102,20 @@ struct TableSelectionContentView: View {
                 }
             }
         }
+    }
+}
+
+struct DatabasePicker: View {
+    @Binding var selectedDatabase: String?
+    let databases: [String]
+
+    var body: some View {
+        Picker("Database", selection: $selectedDatabase) {
+            ForEach(databases, id: \.self) { db in
+                Text(db).tag(db)
+            }
+        }
+        .pickerStyle(.menu)
     }
 }
 

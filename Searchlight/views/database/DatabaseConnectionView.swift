@@ -169,6 +169,9 @@ struct DatabaseConnectionView: View {
             }
             
             appState.selectedDatabase = database
+            // We set the selection to databases here to silence SwiftUI warnings.
+            // This is because we have a selectedDatabase before databases list is populated, and therefore the picker will have a selection in which is not within the possible values
+            appState.databases = [database]
             appState.selectedDatabaseConnectionConfiguration = connection
          
             if appState.selectedDatabaseConnectionConfiguration.favorited {

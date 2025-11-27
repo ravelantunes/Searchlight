@@ -273,7 +273,7 @@ class DatabaseTableViewCell: NSTableRowView {
             Task {
                 do {
                     let result = try await self.pgApi?.select(params: QueryParameters(schemaName: content!.column.foreignSchemaName, tableName: content!.column.foreignTableName, filters: [
-                        Filter(column: content!.column.foreignColumnName!, value: content!.value.stringRepresentation, operatorString: "equals")
+                        Filter(column: content!.column.foreignColumnName!, value: content!.value.stringRepresentation, operation: .equals)
                     ]))
                     withAnimation {
                         quickLookViewModel.row = result!.rows.first!

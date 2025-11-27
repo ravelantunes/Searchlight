@@ -293,21 +293,47 @@ class PostgresDatabaseAPI: ObservableObject {
             }
             return CellValueRepresentation.actual(stringValue)
         case "json", "jsonb":
-            guard let rawByteBuffer = data.value else {
+            // Binary format
+            guard var buf = data.value else {
+                print("No value for \(dataType) column \(column.name)")
                 return .unparseable
             }
-            
-            let allBytes = Data(rawByteBuffer.readableBytesView)
 
-            // Postgres json objects comes with U+0001 (Start of Heading) and we need to manually strip it
-            if let braceOffset = allBytes.firstIndex(of: UInt8(ascii: "{")) {
-                let jsonBytes = allBytes.subdata(in: braceOffset..<allBytes.count)
-                if let jsonString = String(data: jsonBytes, encoding: .utf8) {
-                    return CellValueRepresentation.actual(jsonString)
+            let jsonData: Data
+
+            if dataType == "jsonb" {
+                // First byte is the jsonb version
+                guard let version = buf.readInteger(as: UInt8.self) else {
+                    print("Failed to read jsonb version for column \(column.name)")
+                    return .unparseable
                 }
+
+                // Currently only version 1 is valid
+                guard version == 1 else {
+                    print("Unsupported jsonb version \(version) for column \(column.name)")
+                    return .unparseable
+                }
+
+                guard let d = buf.readData(length: buf.readableBytes) else {
+                    print("Failed to read jsonb payload for column \(column.name)")
+                    return .unparseable
+                }
+                jsonData = d
+            } else {
+                // `json` in binary mode is just text bytes
+                guard let d = buf.readData(length: buf.readableBytes) else {
+                    print("Failed to read json payload for column \(column.name)")
+                    return .unparseable
+                }
+                jsonData = d
             }
-     
-            return CellValueRepresentation.unparseable
+
+            guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+                print("Failed to decode \(dataType) UTF-8 for column \(column.name)")
+                return .unparseable
+            }
+
+            return .actual(jsonString)
         case "bool", "boolean":
             return CellValueRepresentation.actual(data.bool! ? "true" : "false")
         case "int2", "int4", "int8", "integer", "smallint", "bigint":
@@ -320,8 +346,58 @@ class PostgresDatabaseAPI: ObservableObject {
             }
         case "date":
             return CellValueRepresentation.actual(data.string!)
-        case "time", "timetz":
-            return CellValueRepresentation.unsupported
+        case "time":
+            // Fallback: binary format
+            guard var buf = data.value, let micros = buf.readInteger(as: Int64.self) else {
+                print("Failed to parse time column \(column.name)")
+                return .unparseable
+            }
+
+            let totalSeconds = Double(micros) / 1_000_000
+            let hours = Int(totalSeconds / 3600)
+            let minutes = Int(totalSeconds.truncatingRemainder(dividingBy: 3600) / 60)
+            let seconds = totalSeconds.truncatingRemainder(dividingBy: 60)
+
+            // Format as HH:MM:SS[.ffffff]
+            let fractional = seconds - floor(seconds)
+            let formatted: String
+            if fractional == 0 {
+                formatted = String(format: "%02d:%02d:%02.0f", hours, minutes, floor(seconds))
+            } else {
+                formatted = String(format: "%02d:%02d:%06.3f", hours, minutes, seconds)
+            }
+
+            return .actual(formatted)
+        case "timetz":
+            guard var buf = data.value, let micros = buf.readInteger(as: Int64.self), let tzSecondsWest = buf.readInteger(as: Int32.self) else {
+                print("Failed to parse timetz column \(column.name)")
+                return .unparseable
+            }
+
+            let totalSeconds = Double(micros) / 1_000_000
+            let hours = Int(totalSeconds / 3600)
+            let minutes = Int(totalSeconds.truncatingRemainder(dividingBy: 3600) / 60)
+            let seconds = totalSeconds.truncatingRemainder(dividingBy: 60)
+
+            // Offset is "seconds west of UTC", so we invert to get the usual ±east
+            let offsetSeconds = -Int(tzSecondsWest)
+            let offsetSign = offsetSeconds >= 0 ? "+" : "-"
+            let offsetAbs = abs(offsetSeconds)
+            let offsetHours = offsetAbs / 3600
+            let offsetMinutes = (offsetAbs % 3600) / 60
+
+            let timePart: String
+            let fractional = seconds - floor(seconds)
+            if fractional == 0 {
+                timePart = String(format: "%02d:%02d:%02.0f", hours, minutes, floor(seconds))
+            } else {
+                timePart = String(format: "%02d:%02d:%06.3f", hours, minutes, seconds)
+            }
+
+            let offsetPart = String(format: "%@%02d:%02d", offsetSign, offsetHours, offsetMinutes)
+            let formatted = "\(timePart)\(offsetPart)"
+
+            return .actual(formatted)
         case "timestamp", "timestamptz":
             return CellValueRepresentation.actual(data.string!)
         case "int4range", "int8range", "numrange", "tsrange", "tstzrange", "daterange":
