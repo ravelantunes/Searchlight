@@ -20,6 +20,7 @@ struct SSHTunnelConfiguration: Codable, Hashable {
     let user: String
     let keyPath: String
     let keyPassphrase: String?  // Optional passphrase for encrypted SSH keys
+    let keyBookmarkData: Data?  // Security-scoped bookmark for persistent file access
 }
 
 // Struct to wrap the database configuration in an API abstract way

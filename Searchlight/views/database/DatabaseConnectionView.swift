@@ -39,6 +39,7 @@ struct DatabaseConnectionView: View {
     @State private var sshUser: String = ""
     @State private var sshKeyPath: String = "~/.ssh/id_rsa"
     @State private var sshKeyPassphrase: String = ""
+    @State private var sshKeyBookmarkData: Data? = nil  // Security-scoped bookmark
 
     @State private var connectionValidity: ConnectionValidityState = .untested
     
@@ -177,6 +178,12 @@ struct DatabaseConnectionView: View {
                 self.sshUser = ssh.user
                 self.sshKeyPath = ssh.keyPath
                 self.sshKeyPassphrase = ssh.keyPassphrase ?? ""
+                self.sshKeyBookmarkData = ssh.keyBookmarkData
+                if let bookmarkData = ssh.keyBookmarkData {
+                    print("📚 Loaded bookmark data for SSH key: \(bookmarkData.count) bytes")
+                } else {
+                    print("⚠️ No bookmark data found in saved config")
+                }
             } else {
                 // Reset SSH fields to defaults
                 self.useSSHTunnel = false
@@ -185,6 +192,7 @@ struct DatabaseConnectionView: View {
                 self.sshUser = ""
                 self.sshKeyPath = "~/.ssh/id_rsa"
                 self.sshKeyPassphrase = ""
+                self.sshKeyBookmarkData = nil
             }
         }
     }
@@ -197,7 +205,65 @@ struct DatabaseConnectionView: View {
         panel.message = "Select SSH Private Key File"
         panel.begin { response in
             if response == .OK, let url = panel.url {
-                self.sshKeyPath = url.path
+                print("📂 Selected file: \(url.path)")
+
+                // Try to create a bookmark first (works for most locations)
+                do {
+                    print("🔖 Attempting to create bookmark...")
+                    let bookmarkData = try url.bookmarkData(
+                        options: .withSecurityScope,
+                        includingResourceValuesForKeys: nil,
+                        relativeTo: nil
+                    )
+                    self.sshKeyBookmarkData = bookmarkData
+                    self.sshKeyPath = url.path
+                    print("✅ Created security-scoped bookmark for SSH key: \(url.path)")
+                    print("   Bookmark size: \(bookmarkData.count) bytes")
+                    return
+                } catch {
+                    print("⚠️ Bookmark creation failed (likely protected location like .ssh)")
+                    print("   Will copy key to app's Application Support directory instead")
+                }
+
+                // Bookmark failed (e.g., .ssh directory) - copy key to Application Support
+                do {
+                    // Read the key file (we have temporary access from file picker)
+                    let keyData = try Data(contentsOf: url)
+                    print("✅ Read SSH key: \(keyData.count) bytes")
+
+                    // Get Application Support directory
+                    let fileManager = FileManager.default
+                    guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+                        print("❌ Failed to get Application Support directory")
+                        return
+                    }
+
+                    // Create Searchlight/ssh-keys directory
+                    let sshKeysDir = appSupport.appendingPathComponent("Searchlight/ssh-keys", isDirectory: true)
+                    try fileManager.createDirectory(at: sshKeysDir, withIntermediateDirectories: true, attributes: nil)
+
+                    // Copy key with original filename
+                    let originalFilename = url.lastPathComponent
+                    let copiedKeyURL = sshKeysDir.appendingPathComponent(originalFilename)
+
+                    // Write key to Application Support
+                    try keyData.write(to: copiedKeyURL, options: [.atomic])
+
+                    // Set restrictive permissions (0600 - owner read/write only)
+                    let attributes = [FileAttributeKey.posixPermissions: 0o600]
+                    try fileManager.setAttributes(attributes, ofItemAtPath: copiedKeyURL.path)
+
+                    // Store the copied path (no bookmark needed - it's in our app directory)
+                    self.sshKeyPath = copiedKeyURL.path
+                    self.sshKeyBookmarkData = nil
+
+                    print("✅ Copied SSH key to: \(copiedKeyURL.path)")
+                    print("   Original: \(url.path)")
+                } catch {
+                    print("❌ Failed to copy SSH key: \(error.localizedDescription)")
+                    self.sshKeyPath = url.path
+                    self.sshKeyBookmarkData = nil
+                }
             }
         }
     }
@@ -223,8 +289,14 @@ struct DatabaseConnectionView: View {
             self.connectionValidity = .invalid("Missing connection info")
             return
         }
-        
-        FavoritesStore.shared.saveFavorite(databaseConnectionConfiguration: stateToDatabaseConnection(markAsFavorited: true))
+
+        let config = stateToDatabaseConnection(markAsFavorited: true)
+        if let bookmarkData = config.sshTunnel?.keyBookmarkData {
+            print("💾 Saving favorite with bookmark data: \(bookmarkData.count) bytes")
+        } else {
+            print("💾 Saving favorite WITHOUT bookmark data")
+        }
+        FavoritesStore.shared.saveFavorite(databaseConnectionConfiguration: config)
     }
     
     private func connect() {
@@ -263,7 +335,8 @@ struct DatabaseConnectionView: View {
             port: sshPort ?? 22,
             user: sshUser,
             keyPath: sshKeyPath,
-            keyPassphrase: sshKeyPassphrase.isEmpty ? nil : sshKeyPassphrase
+            keyPassphrase: sshKeyPassphrase.isEmpty ? nil : sshKeyPassphrase,
+            keyBookmarkData: sshKeyBookmarkData
         ) : nil
 
         return DatabaseConnectionConfiguration(

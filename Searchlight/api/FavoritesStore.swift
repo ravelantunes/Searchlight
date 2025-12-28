@@ -32,16 +32,20 @@ class FavoritesStore: ObservableObject {
     
     func saveFavorite(databaseConnectionConfiguration: DatabaseConnectionConfiguration) {
         var currentList = loadFavorites()
-        
+
         // Tries to find existing connection with the same name. If it exists, just replce it
         if let existingIndex = currentList.firstIndex(where:{ $0.name == databaseConnectionConfiguration.name }) {
             currentList.remove(at: existingIndex)
         }
-        currentList.insert(databaseConnectionConfiguration)     
-                    
+        currentList.insert(databaseConnectionConfiguration)
+
         let encoder = JSONEncoder()
         if let encoded = try? encoder.encode(currentList) {
+            print("💾 FavoritesStore: Encoded \(currentList.count) favorites to \(encoded.count) bytes")
             UserDefaults.standard.set(encoded, forKey: FavoriteDatabasesListKey)
+            UserDefaults.standard.synchronize()
+        } else {
+            print("❌ FavoritesStore: Failed to encode favorites")
         }
 
         refresh()
@@ -65,15 +69,24 @@ class FavoritesStore: ObservableObject {
     
     func loadFavorites() -> Set<DatabaseConnectionConfiguration> {
         let decoder = JSONDecoder()
-        
+
         guard let data = UserDefaults.standard.data(forKey: FavoriteDatabasesListKey) else {
+            print("📚 FavoritesStore: No favorites data found in UserDefaults")
             return Set()
         }
-    
+
         guard let decoded = try? decoder.decode(Set<DatabaseConnectionConfiguration>.self, from: data) else {
+            print("❌ FavoritesStore: Failed to decode favorites from \(data.count) bytes")
             return Set()
         }
-        
+
+        print("📚 FavoritesStore: Loaded \(decoded.count) favorites from UserDefaults")
+        for favorite in decoded {
+            if let sshBookmark = favorite.sshTunnel?.keyBookmarkData {
+                print("  - '\(favorite.name)' has bookmark data: \(sshBookmark.count) bytes")
+            }
+        }
+
         return decoded
     }
     
