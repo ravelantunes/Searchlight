@@ -22,7 +22,7 @@ struct FavoriteConnectionsView: View {
     
     var body: some View {
         List(selection: $selectedConnection) {            
-            NavigationLink(value: DatabaseConnectionConfiguration(name: "", host: "", database: "", user: "", password: "", ssl: true, favorited: false)) {
+            NavigationLink(value: DatabaseConnectionConfiguration(name: "", host: "", database: "", user: "", password: "", ssl: true, favorited: false, sshTunnel: nil)) {
                 Label("New Connection", systemImage: "plus")
             }
             Section("Favorites") {
@@ -40,6 +40,7 @@ struct FavoriteConnectionsView: View {
                             password: favoriteConnection.password,
                             ssl: favoriteConnection.ssl,
                             favorited: favoriteConnection.favorited,
+                            sshTunnel: favoriteConnection.sshTunnel,
                             connectRightAway: true
                         )                            
                         selectedConnection = favoriteConnectionCopy
