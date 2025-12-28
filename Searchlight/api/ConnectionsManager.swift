@@ -33,24 +33,24 @@ class ConnectionsManager {
         return selectedConnection!
     }
     
-    func initializeConnection(configuration: DatabaseConnectionConfiguration) -> PostgresConnection {
+    func initializeConnection(configuration: DatabaseConnectionConfiguration) async throws -> PostgresConnection {
         if templateConnection == nil {
             templateConnection = configuration
         }
-        
-        let connection = PostgresConnection(configuration: configuration)
+
+        let connection = try await PostgresConnection(configuration: configuration)
         connectionMap[configuration.database] = connection
         return connection
     }
-    
-    func switchConnectionTo(database: String) throws {
+
+    func switchConnectionTo(database: String) async throws {
         if let connection = connectionMap[database] {
-            selectedConnection = connection            
+            selectedConnection = connection
             return
         }
-        
+
         if let newConfiguration = templateConnection?.copyWithDatabaseChangedTo(database: database) {
-            let connection = initializeConnection(configuration: newConfiguration)
+            let connection = try await initializeConnection(configuration: newConfiguration)
             selectedConnection = connection
         }
     }

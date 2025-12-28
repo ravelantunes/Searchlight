@@ -32,16 +32,19 @@ class FavoritesStore: ObservableObject {
     
     func saveFavorite(databaseConnectionConfiguration: DatabaseConnectionConfiguration) {
         var currentList = loadFavorites()
-        
+
         // Tries to find existing connection with the same name. If it exists, just replce it
         if let existingIndex = currentList.firstIndex(where:{ $0.name == databaseConnectionConfiguration.name }) {
             currentList.remove(at: existingIndex)
         }
-        currentList.insert(databaseConnectionConfiguration)     
-                    
+        currentList.insert(databaseConnectionConfiguration)
+
         let encoder = JSONEncoder()
         if let encoded = try? encoder.encode(currentList) {
             UserDefaults.standard.set(encoded, forKey: FavoriteDatabasesListKey)
+            UserDefaults.standard.synchronize()
+        } else {
+            print("FavoritesStore: Failed to encode favorites")
         }
 
         refresh()
@@ -65,15 +68,17 @@ class FavoritesStore: ObservableObject {
     
     func loadFavorites() -> Set<DatabaseConnectionConfiguration> {
         let decoder = JSONDecoder()
-        
+
         guard let data = UserDefaults.standard.data(forKey: FavoriteDatabasesListKey) else {
+            print("No favorites data found in UserDefaults. Returning empty set.")
             return Set()
         }
-    
+
         guard let decoded = try? decoder.decode(Set<DatabaseConnectionConfiguration>.self, from: data) else {
+            print("Failed to decode favorites from \(data.count) bytes. Returning empty set.")
             return Set()
         }
-        
+
         return decoded
     }
     

@@ -56,9 +56,11 @@ struct WindowGroupView: View {
         .navigationTitle(appState.selectedDatabase == nil ? "Searchlight" : "Database: \(appState.selectedDatabase!)")
         .frame(minWidth: 600, minHeight: 450)
         .navigationSplitViewStyle(.prominentDetail)
-        .onChange(of: appState.selectedDatabase, initial: true) { oldValue, newValue in            
+        .onChange(of: appState.selectedDatabase, initial: true) { oldValue, newValue in
             guard let newValue else { return }
-            try? connectionsManagerObservableWrapper.connectionManager.switchConnectionTo(database: newValue)
+            Task {
+                try? await connectionsManagerObservableWrapper.connectionManager.switchConnectionTo(database: newValue)
+            }
         }
     }
 }
