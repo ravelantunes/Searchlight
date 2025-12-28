@@ -24,7 +24,7 @@ enum SSHTunnelError: Error, LocalizedError {
         case .connectionFailed(let message):
             return "SSH connection failed: \(message)"
         case .authenticationFailed:
-            return "SSH authentication failed. Check your key file and passphrase."
+            return "SSH authentication failed. Check your key file."
         case .portForwardingFailed:
             return "Failed to establish port forwarding through SSH tunnel."
         case .tunnelNotEstablished:
@@ -80,7 +80,7 @@ class SSHTunnelManager {
             "\(configuration.user)@\(configuration.host)"
         ]
 
-        // Note: For encrypted keys, macOS SSH will automatically use Keychain for passphrase
+        // Note: For encrypted keys, SSH will prompt for passphrase via macOS Keychain
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
         process.arguments = arguments

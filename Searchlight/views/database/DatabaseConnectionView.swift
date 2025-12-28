@@ -38,7 +38,6 @@ struct DatabaseConnectionView: View {
     @State private var sshPort: Int? = 22
     @State private var sshUser: String = ""
     @State private var sshKeyPath: String = "~/.ssh/id_rsa"
-    @State private var sshKeyPassphrase: String = ""
     @State private var sshKeyBookmarkData: Data? = nil  // Security-scoped bookmark
 
     @State private var connectionValidity: ConnectionValidityState = .untested
@@ -49,8 +48,9 @@ struct DatabaseConnectionView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Form {
-                Section(header: Text("Connection Details").font(.title2).padding(8)) {
+            ScrollView {
+                Form {
+                    Section(header: Text("Connection Details").font(.title2).padding(8)) {
                     // TODO: review SwiftUI method to apply textFieldStyle automatically
                     TextField("Connection Name", text: $connectionName, prompt: Text("Connection Name"))
                         .textFieldStyle(.roundedBorder)
@@ -86,8 +86,6 @@ struct DatabaseConnectionView: View {
                                     }
                                     .buttonStyle(.bordered)
                                 }
-                                SecureField("Key Passphrase (optional)", text: $sshKeyPassphrase, prompt: Text("Key Passphrase"))
-                                    .textFieldStyle(.roundedBorder)
                             }
                             .padding(.top, 8)
                         },
@@ -130,6 +128,8 @@ struct DatabaseConnectionView: View {
                 }
             }
             .frame(maxWidth: 400)
+            .padding(.top, 20)
+            }
             .onChange(of: selectedConnection, {
                 updateStateFromSelectedConnection()
                 connectionValidity = .untested
@@ -177,7 +177,6 @@ struct DatabaseConnectionView: View {
                 self.sshPort = ssh.port
                 self.sshUser = ssh.user
                 self.sshKeyPath = ssh.keyPath
-                self.sshKeyPassphrase = ssh.keyPassphrase ?? ""
                 self.sshKeyBookmarkData = ssh.keyBookmarkData
                 if let bookmarkData = ssh.keyBookmarkData {
                     print("Loaded bookmark data for SSH key: \(bookmarkData.count) bytes")
@@ -191,7 +190,6 @@ struct DatabaseConnectionView: View {
                 self.sshPort = 22
                 self.sshUser = ""
                 self.sshKeyPath = "~/.ssh/id_rsa"
-                self.sshKeyPassphrase = ""
                 self.sshKeyBookmarkData = nil
             }
         }
@@ -325,7 +323,6 @@ struct DatabaseConnectionView: View {
             port: sshPort ?? 22,
             user: sshUser,
             keyPath: sshKeyPath,
-            keyPassphrase: sshKeyPassphrase.isEmpty ? nil : sshKeyPassphrase,
             keyBookmarkData: sshKeyBookmarkData
         ) : nil
 

@@ -19,7 +19,6 @@ struct SSHTunnelConfiguration: Codable, Hashable {
     let port: Int
     let user: String
     let keyPath: String
-    let keyPassphrase: String?  // Reserved for future use - macOS SSH uses Keychain automatically
     let keyBookmarkData: Data?  // Security-scoped bookmark for persistent file access
 }
 
