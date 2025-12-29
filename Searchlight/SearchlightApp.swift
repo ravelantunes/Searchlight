@@ -58,7 +58,9 @@ struct WindowGroupView: View {
         .navigationSplitViewStyle(.prominentDetail)
         .onChange(of: appState.selectedDatabase, initial: true) { oldValue, newValue in            
             guard let newValue else { return }
-            try? connectionsManagerObservableWrapper.connectionManager.switchConnectionTo(database: newValue)
+            Task {
+                try? await connectionsManagerObservableWrapper.connectionManager.switchConnectionTo(database: newValue)
+            }
         }
     }
 }

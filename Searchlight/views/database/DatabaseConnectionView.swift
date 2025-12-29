@@ -131,10 +131,9 @@ struct DatabaseConnectionView: View {
     }
     
     private func testConnection() {
-        let connectionManager = connectionsManagerObservableWrapper.connectionManager.initializeConnection(configuration: stateToDatabaseConnection())
-        
         connectionValidity = .testing
         Task {
+            let connectionManager = await connectionsManagerObservableWrapper.connectionManager.initializeConnection(configuration: stateToDatabaseConnection())
             do {
                 try await connectionManager.testConnection()
                 self.connectionValidity = .valid
@@ -156,11 +155,11 @@ struct DatabaseConnectionView: View {
     
     private func connect() {
         let connection = stateToDatabaseConnection()
-        let connectionManager = connectionsManagerObservableWrapper.connectionManager.initializeConnection(configuration: connection)
-        try! connectionsManagerObservableWrapper.connectionManager.switchConnectionTo(database: database)
         connectionValidity = .testing
         Task {
             do {
+                let connectionManager = await connectionsManagerObservableWrapper.connectionManager.initializeConnection(configuration: connection)
+                try await connectionsManagerObservableWrapper.connectionManager.switchConnectionTo(database: database)
                 try await connectionManager.testConnection()
                 self.connectionValidity = .valid
             } catch {
