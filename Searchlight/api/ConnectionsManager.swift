@@ -26,22 +26,30 @@ class ConnectionsManager {
     // Keep a reference to the first connection to be used to create different connections during database changes
     private var templateConnection: DatabaseConnectionConfiguration?
     
-    var connection: PostgresConnection {        
+    var connection: PostgresConnection {
         guard selectedConnection != nil else {
             fatalError("No connection has been selected yet")
         }
         return selectedConnection!
     }
-    
+
     func initializeConnection(configuration: DatabaseConnectionConfiguration) async throws -> PostgresConnection {
         if templateConnection == nil {
             templateConnection = configuration
+        }
+
+        if let existing = connectionMap.removeValue(forKey: configuration.database) {
+            if selectedConnection === existing {
+                selectedConnection = nil
+            }
+            await existing.close()
         }
 
         let connection = try await PostgresConnection(configuration: configuration)
         connectionMap[configuration.database] = connection
         return connection
     }
+
 
     func switchConnectionTo(database: String) async throws {
         if let connection = connectionMap[database] {
@@ -52,7 +60,10 @@ class ConnectionsManager {
         if let newConfiguration = templateConnection?.copyWithDatabaseChangedTo(database: database) {
             let connection = try await initializeConnection(configuration: newConfiguration)
             selectedConnection = connection
+            return
         }
+
+        throw ConnectionManagerError.connectionNotFound(database)
     }
     
     func connection(database: String) throws -> PostgresConnection {                 
@@ -61,6 +72,36 @@ class ConnectionsManager {
             throw ConnectionManagerError.connectionNotFound(database)
         }
         return connection
+    }
+
+    func closeConnection(for database: String) async {
+        guard let connection = connectionMap.removeValue(forKey: database) else { return }
+        
+        if selectedConnection === connection {
+            selectedConnection = nil
+        }
+        
+        await connection.close()
+    }
+
+    func closeAllConnections() async {
+        let connections = Array(connectionMap.values)
+        connectionMap.removeAll()
+        selectedConnection = nil
+
+        for connection in connections {
+            await connection.close()
+        }
+    }
+
+    deinit {
+        // Best-effort async cleanup without capturing self
+        let connections = Array(connectionMap.values)
+        for connection in connections {
+            Task {
+                await connection.close()
+            }
+        }
     }
 }
 

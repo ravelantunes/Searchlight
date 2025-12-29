@@ -23,6 +23,7 @@ class PostgresConnection {
     private let eventLoopGroup: MultiThreadedEventLoopGroup
     private let connectionPool: EventLoopGroupConnectionPool<PostgresConnectionSource>
     private var sshTunnelManager: SSHTunnelManager?
+    private var isClosed = false
 
     init(configuration: DatabaseConnectionConfiguration) async throws {
         self.configuration = configuration
@@ -74,24 +75,37 @@ class PostgresConnection {
             on: eventLoopGroup
         )
     }
-    
-    deinit {
+
+    /// Closes the connection pool and event loop group.
+    /// This is idempotent so it can be safely called multiple times.
+    func close() async {
+        guard !isClosed else { return }
+        isClosed = true
+
         // Close SSH tunnel if established
         if let tunnel = sshTunnelManager {
-            Task {
-                try? await tunnel.closeTunnel()
-            }
+            try? await tunnel.closeTunnel()
         }
 
-        do {
+        await withCheckedContinuation { continuation in
             connectionPool.shutdownGracefully { error in
                 if let error {
                     print("Failed to shutdown connection pool: \(error)")
                 }
+                continuation.resume()
             }
+        }
+
+        do {
             try eventLoopGroup.syncShutdownGracefully()
         } catch {
             print("Failed to shutdown EventLoopGroup: \(error)")
+        }
+    }
+
+    deinit {
+        Task {
+            await close()
         }
     }
     
