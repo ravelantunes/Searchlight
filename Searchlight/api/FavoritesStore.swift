@@ -33,7 +33,7 @@ class FavoritesStore: ObservableObject {
     func saveFavorite(databaseConnectionConfiguration: DatabaseConnectionConfiguration) {
         var currentList = loadFavorites()
 
-        // Tries to find existing connection with the same name. If it exists, just replce it
+        // Tries to find existing connection with the same name. If it exists, just replace it
         if let existingIndex = currentList.firstIndex(where:{ $0.name == databaseConnectionConfiguration.name }) {
             currentList.remove(at: existingIndex)
         }
