@@ -2,67 +2,53 @@
 
 ![Screenshot of Searchlight](./docs/screenshot1.png)
 
+Searchlight is a native macOS, open-source PostgreSQL client designed to be simple, lightweight, and developer-friendly. It offers a clean and intuitive interface for managing databases and running queries without the complexity of full-scale database management tools. Searchlight focuses on delivering a smooth and efficient experience for developers who need quick and easy access to their PostgreSQL databases.
+
 ## Installation
 
-Only installation method (other than building from source) at this moment is to download from the [Releases Page](https://github.com/ravelantunes/Searchlight/releases).
+Download the latest release from the [Releases Page](https://github.com/ravelantunes/Searchlight/releases).
 
 > I’m using my personal Apple developer account so I can’t notarize the app with Apple. If you try to install from the GitHub releases page MacOS will warn that it can’t verify the developer identity, so you will need to approve the install on Settings > Privacy, or build from source.
 
-## Goal
+## Current Features
 
-Searchlight is a native macOS, open-source PostgreSQL client designed to be simple, lightweight, and developer-friendly. It offers a clean and intuitive interface for managing databases and running queries without the complexity of full-scale database management tools. Searchlight focuses on delivering a smooth and efficient experience for developers who need quick and easy access to their PostgreSQL databases.
+### Connection Management
 
-## Features
+- Save and manage favorite connections
+- SSH tunnel support with key-based authentication
+- SSL/TLS connection support
 
-- Connection Management
-  - [x] Save favorite connections
-    - [ ] Colors
-  - [ ] SSH tunneling
-- Database Browser
+### Database Browser
 
-  - [x] Quick search and filter
-  - [x] Pagination
-  - [x] Relationship linking on data view
-  - [x] Copy row as JSON, CSV, SQL, etc
-  - [ ] Connect in read-only mode
-  - [x] Browse databases
-  - [x] Browse tables
-  - [ ] Browse indexes
-  - [ ] Browse triggers
-  - [ ] Browse views
-  - [ ] Browse functions
-  - [ ] Browse extensions
-  - [ ] Browse roles
-  - [x] Browse schemas
-  - [ ] Browse sequences
-  - [ ] Support range types
+- Browse databases, schemas, and tables
+- Quick search and filter on table data
+- Foreign key relationship linking — click to navigate to related records
+- Column statistics popover — view unique values, null counts, and value distribution charts
 
-- Data Manipulation
-  - [x] Sort Rows
-  - [x] Edit Row
-  - [x] Insert Row
-  - [x] Multi-row manipulation
-- Database Management
+### Data Manipulation
 
-  - [ ] Create/Delete databases
-  - [x] Switch databases
-  - [ ] Create/Delete/Modify tables
-  - [ ] Create/Delete/Modify indexes
-  - [ ] Create/Delete/Modify triggers
-  - [ ] Manage users and roles
-  - [ ] View console/logs/monitoring
+- Insert new rows directly in the table
+- Copy cell value, row, columns in different formats
+- Auto-complete/data look-up from foreign key references when inserting data
+- Export formats: Plain text, CSV, SQL INSERT statements
 
-- Query Editor
-  - [x] Query editor
-  - [x] Syntax highlighting
-  - [ ] schema-aware SQL autocomplete
-    - [ ] AI autocomplete
-  - [ ] Query history and favorites
-- Import/Export
-  - [ ] Import/Export CSV
-  - [ ] Import/Export SQL
-  - [ ] Import/Export JSON
-- Postgres Extensions
-  - [ ] Support for Postgres extensions
-- Misc
-  - [ ] Github action builds
+### Query Editor
+
+- Free-form SQL query execution
+- Syntax highlighting with custom SQL tokenizer
+- View results in the same data table interface
+
+## Tech Stack
+
+- **Swift & SwiftUI** — Native macOS app with AppKit integration for advanced table views
+- **PostgresKit / PostgresNIO** — PostgreSQL driver with connection pooling
+- **SwiftNIO** — Async networking foundation
+- **System SSH** — Native SSH tunnel support using macOS system tools
+
+## Contributing
+
+Contributions are welcome! Feel free to open issues or submit pull requests.
+
+## License
+
+See [LICENSE](LICENSE) for details.
