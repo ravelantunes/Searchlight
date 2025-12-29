@@ -104,9 +104,19 @@ class PostgresConnection {
     }
 
     deinit {
-        Task {
-            await close()
+        // Synchronous cleanup - cannot use async in deinit
+        guard !isClosed else { return }
+
+        // Note: sshTunnelManager will clean itself up in its own deinit
+
+        // Best-effort synchronous shutdown of connection pool and event loop
+        connectionPool.shutdownGracefully { error in
+            if let error {
+                print("Failed to shutdown connection pool in deinit: \(error)")
+            }
         }
+
+        try? eventLoopGroup.syncShutdownGracefully()
     }
     
     func testConnection() async throws {

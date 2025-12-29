@@ -97,7 +97,7 @@ class SSHTunnelManager {
             self.sshProcess = process
 
             // Give SSH a moment to establish the connection
-            try await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+            try await Task.sleep(nanoseconds: 2_000_000_000) // 5 seconds
 
             // Check if process is still running
             if !process.isRunning {
