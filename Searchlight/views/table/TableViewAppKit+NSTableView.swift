@@ -49,7 +49,7 @@ extension TableViewAppKit: NSTableViewDelegate, NSTableViewDataSource {
                 return Cell(column: column, value: .actual(""), position: column.position)
             }
             guard let cellContent = self.getCell(coordinate: Coordinate(row: row, column: column.position)) else {
-                print("Table \(data.tableName) Current data dimensions: \(data.rows.count) rows, \(data.columns.count) columns. Is editable: \(isEditable)")
+                print("Table \(String(describing: data.tableName)) Current data dimensions: \(data.rows.count) rows, \(data.columns.count) columns. Is editable: \(isEditable)")
                 fatalError("Fatal failure on viewFor while calling getCell for row \(row) column \(column.position)")
             }
             return cellContent
@@ -76,7 +76,7 @@ extension TableViewAppKit: NSTableViewDelegate, NSTableViewDataSource {
     
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard let tableView = notification.object as? NSTableView else { return }
-        let selectedIndex = tableView.selectedRowIndexes
+        _ = tableView.selectedRowIndexes
         
         // Check if selected indexes are empty
         // TODO: Review why I needed this. It is calling submitEditing on a delete animation

@@ -274,7 +274,7 @@ class PostgresDatabaseAPI: ObservableObject {
         DELETE FROM "\(schema)"."\(table)"
         WHERE ctid IN (\(tidList));
         """
-        try await connectionManager.connection.query(query: sql)
+        _ = try await connectionManager.connection.query(query: sql)
     }
     
     private func parseCellValue(data: PostgresData, column: Column) -> CellValueRepresentation {

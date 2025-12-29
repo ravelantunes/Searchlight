@@ -18,25 +18,50 @@ import CryptoKit
 // Ideally this class is all we would need, but since changing databases requires to create new connection (and the PostgresConnectionSource requires the database as an argument) the ConnectionsManager
 // helps handling multiple PostgresConnection for different databases.
 class PostgresConnection {
-    
+
     private let configuration: DatabaseConnectionConfiguration
     private let eventLoopGroup: MultiThreadedEventLoopGroup
     private let connectionPool: EventLoopGroupConnectionPool<PostgresConnectionSource>
+    private var sshTunnelManager: SSHTunnelManager?
     private var isClosed = false
-                      
-    init(configuration: DatabaseConnectionConfiguration) {
+
+    init(configuration: DatabaseConnectionConfiguration) async throws {
         self.configuration = configuration
         eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
-        
+
+        // Establish SSH tunnel if configured
+        let connectionHost: String
+        let connectionPort: Int
+
+        if let sshConfig = configuration.sshTunnel, sshConfig.enabled {
+            print("SSH tunnel enabled, establishing tunnel...")
+            let tunnelManager = SSHTunnelManager(
+                sshConfig: sshConfig,
+                remoteHost: configuration.host,
+                remotePort: configuration.port
+            )
+            try await tunnelManager.establishTunnel()
+            self.sshTunnelManager = tunnelManager
+
+            // Connect to localhost using the tunnel's local port
+            connectionHost = "127.0.0.1"
+            connectionPort = tunnelManager.localPort
+            print("SSH tunnel established on localhost:\(connectionPort)")
+        } else {
+            // Direct connection without SSH tunnel
+            connectionHost = configuration.host
+            connectionPort = configuration.port
+        }
+
         // Disabling certificate validation so it can work out of the box with certain hosts (ie.: AWS RDS)
         // TODO: make this optional instead of the default
         var tlsConfig = TLSConfiguration.makeClientConfiguration()
         tlsConfig.certificateVerification = .none
-                
+
         // Map our internal config struct into the NIO config
         let postgresNIOSqlConfiguration = SQLPostgresConfiguration(
-            hostname: configuration.host,
-            port: configuration.port,
+            hostname: connectionHost,
+            port: connectionPort,
             username: configuration.user,
             password: configuration.password,
             database: configuration.database,
@@ -50,12 +75,17 @@ class PostgresConnection {
             on: eventLoopGroup
         )
     }
-    
+
     /// Closes the connection pool and event loop group.
     /// This is idempotent so it can be safely called multiple times.
     func close() async {
         guard !isClosed else { return }
         isClosed = true
+
+        // Close SSH tunnel if established
+        if let tunnel = sshTunnelManager {
+            try? await tunnel.closeTunnel()
+        }
 
         await withCheckedContinuation { continuation in
             connectionPool.shutdownGracefully { error in
@@ -72,11 +102,21 @@ class PostgresConnection {
             print("Failed to shutdown EventLoopGroup: \(error)")
         }
     }
-    
+
     deinit {
-        Task {
-            await close()
+        // Synchronous cleanup - cannot use async in deinit
+        guard !isClosed else { return }
+
+        // Note: sshTunnelManager will clean itself up in its own deinit
+
+        // Best-effort synchronous shutdown of connection pool and event loop
+        connectionPool.shutdownGracefully { error in
+            if let error {
+                print("Failed to shutdown connection pool in deinit: \(error)")
+            }
         }
+
+        try? eventLoopGroup.syncShutdownGracefully()
     }
     
     func testConnection() async throws {

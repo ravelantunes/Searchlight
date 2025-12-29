@@ -12,6 +12,16 @@
 
 import Foundation
 
+// SSH Tunnel Configuration
+struct SSHTunnelConfiguration: Codable, Hashable {
+    let enabled: Bool
+    let host: String
+    let port: Int
+    let user: String
+    let keyPath: String
+    let keyBookmarkData: Data?  // Security-scoped bookmark for persistent file access
+}
+
 // Struct to wrap the database configuration in an API abstract way
 struct DatabaseConnectionConfiguration: Codable, Identifiable, Hashable {
     
@@ -41,17 +51,20 @@ struct DatabaseConnectionConfiguration: Codable, Identifiable, Hashable {
     
     // Whether the current connection is a favorited connection
     let favorited: Bool
-    
+
+    // SSH Tunnel configuration (optional)
+    let sshTunnel: SSHTunnelConfiguration?
+
     // TODO: this is a bit of a hack, and can be better implemented by moving the connection out of the DatabaseConnection View
     // This is used as an internal shortcut to notify the DatabaseConnectionView to try to connect right away.
-    var connectRightAway: Bool = false    
+    var connectRightAway: Bool = false
 }
 
 // Creates a copy of the struct, overriding the database name with the one passed as argument.
 // This is to help with the database change funcionality, where we need to create a new connection.
 extension DatabaseConnectionConfiguration {
     func copyWithDatabaseChangedTo(database newDatabase: String) -> Self {
-        return DatabaseConnectionConfiguration(name: id, host: host, database: newDatabase, user: user, password: password, ssl: ssl, favorited: favorited)
+        return DatabaseConnectionConfiguration(name: id, host: host, database: newDatabase, user: user, password: password, ssl: ssl, favorited: favorited, sshTunnel: sshTunnel)
     }
 }
 

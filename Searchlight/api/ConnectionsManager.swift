@@ -26,14 +26,14 @@ class ConnectionsManager {
     // Keep a reference to the first connection to be used to create different connections during database changes
     private var templateConnection: DatabaseConnectionConfiguration?
     
-    var connection: PostgresConnection {        
+    var connection: PostgresConnection {
         guard selectedConnection != nil else {
             fatalError("No connection has been selected yet")
         }
         return selectedConnection!
     }
-    
-    func initializeConnection(configuration: DatabaseConnectionConfiguration) async -> PostgresConnection {
+
+    func initializeConnection(configuration: DatabaseConnectionConfiguration) async throws -> PostgresConnection {
         if templateConnection == nil {
             templateConnection = configuration
         }
@@ -45,19 +45,20 @@ class ConnectionsManager {
             await existing.close()
         }
 
-        let connection = PostgresConnection(configuration: configuration)
+        let connection = try await PostgresConnection(configuration: configuration)
         connectionMap[configuration.database] = connection
         return connection
     }
-    
+
+
     func switchConnectionTo(database: String) async throws {
         if let connection = connectionMap[database] {
-            selectedConnection = connection            
+            selectedConnection = connection
             return
         }
-        
+
         if let newConfiguration = templateConnection?.copyWithDatabaseChangedTo(database: database) {
-            let connection = await initializeConnection(configuration: newConfiguration)
+            let connection = try await initializeConnection(configuration: newConfiguration)
             selectedConnection = connection
             return
         }

@@ -16,5 +16,5 @@ class AppState: ObservableObject {
     @Published var databases: [String] = [""]
     @Published var selectedDatabase: String?
     @Published var selectedTable: Table?
-    @Published var selectedDatabaseConnectionConfiguration = DatabaseConnectionConfiguration(name: "", host: "", database: "", user: "", password: "", ssl: false, favorited: false)
+    @Published var selectedDatabaseConnectionConfiguration = DatabaseConnectionConfiguration(name: "", host: "", database: "", user: "", password: "", ssl: false, favorited: false, sshTunnel: nil)
 }
