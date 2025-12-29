@@ -6,22 +6,31 @@
 //
 
 import SwiftUI
+import AppKit
 
 @main
 struct SearchlightApp: App {
+    @NSApplicationDelegateAdaptor(SearchlightAppDelegate.self) private var appDelegate
+
     var body: some Scene {
         WindowGroup(id: "Database Selection") {
             WindowGroupView()
+                .environmentObject(appDelegate)
         }
         .windowResizability(.contentSize)
     }
 }
 
 struct WindowGroupView: View {
+    @Environment(\.openWindow) private var openWindow
+    @EnvironmentObject private var appDelegate: SearchlightAppDelegate
     @ObservedObject private var appState = AppState()
     @ObservedObject private var connectionsManagerObservableWrapper = ConnectionsManagerObservableWrapper()
     @State private var databases: [String] = []
     @State private var showBanner = true
+    
+    // We want to open a new connection window when user closes all screens, except if they never connected to a database
+    @State private var hasLeftInitialScreen = false
 
     var body: some View {
         NavigationSplitView() {
@@ -58,9 +67,43 @@ struct WindowGroupView: View {
         .navigationSplitViewStyle(.prominentDetail)
         .onChange(of: appState.selectedDatabase, initial: true) { oldValue, newValue in
             guard let newValue else { return }
+            hasLeftInitialScreen = true
             Task {
                 try? await connectionsManagerObservableWrapper.connectionManager.switchConnectionTo(database: newValue)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { _ in
+            reopenWindowIfNeeded()
+        }
+    }
+
+    private func reopenWindowIfNeeded() {
+        guard !appDelegate.isTerminating else { return }
+        guard hasLeftInitialScreen else { return }
+
+        DispatchQueue.main.async {
+            let hasVisibleWindows = NSApplication.shared.windows.contains { window in
+                guard !(window is NSPanel) else { return false }
+                return window.isVisible || window.isMiniaturized
+            }
+
+            if !hasVisibleWindows {
+                openWindow(id: "Database Selection")
+            }
+        }
+    }
+}
+
+@MainActor
+final class SearchlightAppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
+    @Published var isTerminating = false
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        isTerminating = true
+        return .terminateNow
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        isTerminating = true
     }
 }
