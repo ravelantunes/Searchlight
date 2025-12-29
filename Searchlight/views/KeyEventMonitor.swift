@@ -16,12 +16,22 @@ import AppKit
 class KeyEventMonitor: ObservableObject {
     private var monitor: Any?
     
-    func startMonitoring(escapeKey: @escaping () -> Void) {
+    func startMonitoring(escapeKey: (() -> Void)? = nil, commandEnter: (() -> Void)? = nil) {
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            if event.keyCode == 53 { // Escape key
+            // Escape key (keyCode 53)
+            if event.keyCode == 53, let escapeKey = escapeKey {
                 escapeKey()
                 return nil
             }
+
+            // Command+Enter (keyCode 36 for Return, 76 for Enter on numpad)
+            if event.modifierFlags.contains(.command),
+               (event.keyCode == 36 || event.keyCode == 76),
+               let commandEnter = commandEnter {
+                commandEnter()
+                return nil
+            }
+
             return event
         }
     }

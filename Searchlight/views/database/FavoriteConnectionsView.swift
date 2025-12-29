@@ -28,7 +28,12 @@ struct FavoriteConnectionsView: View {
             Section("Favorites") {
                 ForEach(favoriteStore.favorites) { favoriteConnection in
                     NavigationLink(value: favoriteConnection) {
-                        Label(favoriteConnection.name, systemImage: "star")
+                        Label {
+                            Text(favoriteConnection.name)
+                        } icon: {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(favoriteConnection.favoriteColor != nil ? hexToColor(favoriteConnection.favoriteColor!) : .secondary)
+                        }
                     }
                     .onTapGesture(count: 2) {
                         // Make copy of favoriteConnection so we can append connectRightAway to the struct
@@ -41,8 +46,10 @@ struct FavoriteConnectionsView: View {
                             ssl: favoriteConnection.ssl,
                             favorited: favoriteConnection.favorited,
                             sshTunnel: favoriteConnection.sshTunnel,
-                            connectRightAway: true
-                        )                            
+                            connectRightAway: true,
+                            favoriteColor: favoriteConnection.favoriteColor,
+                            favoriteIcon: favoriteConnection.favoriteIcon
+                        )
                         selectedConnection = favoriteConnectionCopy
                     }
                     .simultaneousGesture(TapGesture(count: 1).onEnded {
@@ -67,5 +74,16 @@ struct FavoriteConnectionsView: View {
                 self.selectedConnection = selectedDatabase
             }
         }
+    }
+
+    // Helper function for color conversion
+    private func hexToColor(_ hex: String) -> Color {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let r = Double((int >> 16) & 0xFF) / 255.0
+        let g = Double((int >> 8) & 0xFF) / 255.0
+        let b = Double(int & 0xFF) / 255.0
+        return Color(red: r, green: g, blue: b)
     }
 }

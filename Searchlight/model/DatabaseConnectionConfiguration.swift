@@ -58,13 +58,32 @@ struct DatabaseConnectionConfiguration: Codable, Identifiable, Hashable {
     // TODO: this is a bit of a hack, and can be better implemented by moving the connection out of the DatabaseConnection View
     // This is used as an internal shortcut to notify the DatabaseConnectionView to try to connect right away.
     var connectRightAway: Bool = false
+
+    // Visual customization for favorites
+    let favoriteColor: String?     // Hex color string (e.g., "#0000FF")
+    let favoriteIcon: String?      // SF Symbol name (e.g., "star.fill")
+
+    init(name: String, host: String, port: Int = 5432, database: String, user: String, password: String, ssl: Bool, favorited: Bool, sshTunnel: SSHTunnelConfiguration?, connectRightAway: Bool = false, favoriteColor: String? = nil, favoriteIcon: String? = nil) {
+        self.name = name
+        self.host = host
+        self.port = port
+        self.database = database
+        self.user = user
+        self.password = password
+        self.ssl = ssl
+        self.favorited = favorited
+        self.sshTunnel = sshTunnel
+        self.connectRightAway = connectRightAway
+        self.favoriteColor = favoriteColor
+        self.favoriteIcon = favoriteIcon
+    }
 }
 
 // Creates a copy of the struct, overriding the database name with the one passed as argument.
 // This is to help with the database change funcionality, where we need to create a new connection.
 extension DatabaseConnectionConfiguration {
     func copyWithDatabaseChangedTo(database newDatabase: String) -> Self {
-        return DatabaseConnectionConfiguration(name: id, host: host, database: newDatabase, user: user, password: password, ssl: ssl, favorited: favorited, sshTunnel: sshTunnel)
+        return DatabaseConnectionConfiguration(name: id, host: host, database: newDatabase, user: user, password: password, ssl: ssl, favorited: favorited, sshTunnel: sshTunnel, connectRightAway: connectRightAway, favoriteColor: favoriteColor, favoriteIcon: favoriteIcon)
     }
 }
 

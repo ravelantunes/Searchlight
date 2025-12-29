@@ -40,11 +40,36 @@ struct DatabaseConnectionView: View {
     @State private var sshKeyPath: String = "~/.ssh/id_rsa"
     @State private var sshKeyBookmarkData: Data? = nil  // Security-scoped bookmark
 
+    // Visual customization
+    @State private var selectedColorHex: String? = nil  // nil means no color selected
+
     @State private var connectionValidity: ConnectionValidityState = .untested
-    
+
+    @StateObject private var keyEventMonitor = KeyEventMonitor()
+
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var connectionsManagerObservableWrapper: ConnectionsManagerObservableWrapper
     @EnvironmentObject var selectedConnection: DatabaseConnectionConfigurationWrapper
+
+    // Predefined colors that work well in both light and dark mode
+    private let predefinedColors: [(name: String, hex: String)] = [
+        ("Red", "#FF6B6B"),
+        ("Orange", "#FFA94D"),
+        ("Green", "#51CF66"),
+        ("Blue", "#4DABF7"),
+        ("Purple", "#CC5DE8"),
+        ("Pink", "#FF6B9D")
+    ]
+
+    // Computed properties for dynamic button text
+    private var isEditingExistingFavorite: Bool {
+        guard !connectionName.isEmpty else { return false }
+        return FavoritesStore.shared.favorites.contains(where: { $0.name == connectionName })
+    }
+
+    private var favoriteButtonText: String {
+        isEditingExistingFavorite ? "Save Changes" : "Add to Favorites"
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -64,6 +89,47 @@ struct DatabaseConnectionView: View {
                         .textFieldStyle(.roundedBorder)
                     SecureField("Password", text: $password, prompt: Text("Password"))
                         .textFieldStyle(.roundedBorder)
+                }
+
+                // Visual Customization Section
+                Section {
+                    HStack(spacing: 6) {
+                        // No color button
+                        Button(action: {
+                            selectedColorHex = nil
+                        }) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(Color.gray, lineWidth: selectedColorHex == nil ? 2 : 1)
+                                    .frame(width: 16, height: 16)
+                                Image(systemName: "slash.circle")
+                                    .foregroundColor(.gray)
+                                    .font(.system(size: 10))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .help("No color")
+
+                        // Color selection buttons
+                        ForEach(predefinedColors, id: \.hex) { colorOption in
+                            Button(action: {
+                                selectedColorHex = colorOption.hex
+                            }) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(hexToColor(colorOption.hex))
+                                        .frame(width: 16, height: 16)
+                                    if selectedColorHex == colorOption.hex {
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .stroke(Color.primary, lineWidth: 2)
+                                            .frame(width: 16, height: 16)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .help(colorOption.name)
+                        }
+                    }
                 }
 
                 // SSH Tunnel Section
@@ -114,7 +180,7 @@ struct DatabaseConnectionView: View {
                         .buttonStyle(.borderedProminent)
                         
                         Button(action: addToFavorites) {
-                            Text("Add to Favorites")
+                            Text(favoriteButtonText)
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
@@ -126,6 +192,7 @@ struct DatabaseConnectionView: View {
                             .frame(height: 80, alignment: .top)
                     }
                 }
+                .padding(.trailing, 16)  // Prevent scrollbar overlap
             }
             .frame(maxWidth: 400)
             .padding(.top, 20)
@@ -133,11 +200,23 @@ struct DatabaseConnectionView: View {
             .onChange(of: selectedConnection, {
                 updateStateFromSelectedConnection()
                 connectionValidity = .untested
-                
+
                 if selectedConnection.configuration!.connectRightAway {
                     connect()
                 }
             })
+            .onAppear {
+                keyEventMonitor.startMonitoring(
+                    commandEnter: {
+                        if self.validateForm() {
+                            self.connect()
+                        }
+                    }
+                )
+            }
+            .onDisappear {
+                keyEventMonitor.stopMonitoring()
+            }
             .animation(.easeInOut, value: showBanner)
         }        
     }
@@ -169,6 +248,9 @@ struct DatabaseConnectionView: View {
             self.username = config.user
             self.password = config.password
             self.useSSL = config.ssl
+
+            // Load color customization
+            self.selectedColorHex = config.favoriteColor
 
             // Load SSH tunnel configuration
             if let ssh = config.sshTunnel {
@@ -335,7 +417,9 @@ struct DatabaseConnectionView: View {
             password: password,
             ssl: useSSL,
             favorited: markAsFavorited ? true : appState.selectedDatabaseConnectionConfiguration.favorited,
-            sshTunnel: sshConfig
+            sshTunnel: sshConfig,
+            favoriteColor: selectedColorHex,
+            favoriteIcon: "star.fill"
         )
     }
     
@@ -355,6 +439,17 @@ struct DatabaseConnectionView: View {
     private func validateForm() -> Bool {
         // TODO: refactor this to provide information on missing fields
         return !host.isEmpty && !database.isEmpty && !username.isEmpty
+    }
+
+    // Helper function for color conversion
+    private func hexToColor(_ hex: String) -> Color {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let r = Double((int >> 16) & 0xFF) / 255.0
+        let g = Double((int >> 8) & 0xFF) / 255.0
+        let b = Double(int & 0xFF) / 255.0
+        return Color(red: r, green: g, blue: b)
     }
 }
 
