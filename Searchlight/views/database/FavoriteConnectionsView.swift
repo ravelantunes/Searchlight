@@ -112,11 +112,18 @@ struct FavoriteConnectionsView: View {
 
     private func favoriteRow(for connection: DatabaseConnectionConfiguration) -> some View {
         FavoriteConnectionRow(connection: connection, isSelected: selectedConnectionID == connection.id)
+            .onDoubleClick {
+                var connectionCopy = connection
+                connectionCopy.connectRightAway = true
+                selectedConnection = connectionCopy
+            }
             .contextMenu {
-                Button(role: .destructive) {
-                    favoriteStore.removeFavorite(databaseConnectionConfiguration: connection)
+                Button {
+                    var connectionCopy = connection
+                    connectionCopy.connectRightAway = true
+                    selectedConnection = connectionCopy
                 } label: {
-                    Label("Delete \"\(connection.name)\"", systemImage: "trash")
+                    Label("Connect", systemImage: "bolt.fill")
                 }
 
                 Divider()
@@ -127,6 +134,12 @@ struct FavoriteConnectionsView: View {
                     Label("Duplicate", systemImage: "doc.on.doc")
                 }
                 .disabled(true)
+
+                Button(role: .destructive) {
+                    favoriteStore.removeFavorite(databaseConnectionConfiguration: connection)
+                } label: {
+                    Label("Delete \"\(connection.name)\"", systemImage: "trash")
+                }
             }
     }
 

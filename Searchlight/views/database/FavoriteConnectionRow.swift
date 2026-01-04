@@ -11,6 +11,40 @@
 //
 
 import SwiftUI
+import AppKit
+
+/// A view modifier that adds double-click detection using AppKit
+/// This is needed because I didn't find a solution on SwiftUI to both handle single tap selection and double-tap for starting a connection.
+struct DoubleClickHandler: NSViewRepresentable {
+    let onDoubleClick: () -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = DoubleClickView()
+        view.onDoubleClick = onDoubleClick
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        (nsView as? DoubleClickView)?.onDoubleClick = onDoubleClick
+    }
+
+    class DoubleClickView: NSView {
+        var onDoubleClick: (() -> Void)?
+
+        override func mouseDown(with event: NSEvent) {
+            super.mouseDown(with: event)
+            if event.clickCount == 2 {
+                onDoubleClick?()
+            }
+        }
+    }
+}
+
+extension View {
+    func onDoubleClick(perform action: @escaping () -> Void) -> some View {
+        overlay(DoubleClickHandler(onDoubleClick: action))
+    }
+}
 
 /// Enhanced favorite connection row with color indicator and subtitle
 struct FavoriteConnectionRow: View {
