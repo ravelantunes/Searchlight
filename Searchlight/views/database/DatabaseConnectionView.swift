@@ -15,13 +15,6 @@ import SwiftUI
 import PostgresKit
 import AppKit
 
-enum ConnectionValidityState {
-    case untested
-    case testing
-    case valid
-    case invalid(String)
-}
-
 struct DatabaseConnectionView: View {
     @State private var connectionName: String = ""
     @State private var host: String = ""
@@ -30,7 +23,6 @@ struct DatabaseConnectionView: View {
     @State private var username: String = ""
     @State private var password: String = ""
     @State private var useSSL: Bool = true
-    @State private var showBanner = true
 
     // SSH Tunnel configuration
     @State private var useSSHTunnel: Bool = false
@@ -38,10 +30,10 @@ struct DatabaseConnectionView: View {
     @State private var sshPort: Int? = 22
     @State private var sshUser: String = ""
     @State private var sshKeyPath: String = "~/.ssh/id_rsa"
-    @State private var sshKeyBookmarkData: Data? = nil  // Security-scoped bookmark
+    @State private var sshKeyBookmarkData: Data? = nil
 
     // Visual customization
-    @State private var selectedColorHex: String? = nil  // nil means no color selected
+    @State private var selectedColorHex: String? = nil
 
     @State private var connectionValidity: ConnectionValidityState = .untested
 
@@ -51,194 +43,124 @@ struct DatabaseConnectionView: View {
     @EnvironmentObject var connectionsManagerObservableWrapper: ConnectionsManagerObservableWrapper
     @EnvironmentObject var selectedConnection: DatabaseConnectionConfigurationWrapper
 
-    // Predefined colors that work well in both light and dark mode
-    private let predefinedColors: [(name: String, hex: String)] = [
-        ("Red", "#FF6B6B"),
-        ("Orange", "#FFA94D"),
-        ("Green", "#51CF66"),
-        ("Blue", "#4DABF7"),
-        ("Purple", "#CC5DE8"),
-        ("Pink", "#FF6B9D")
-    ]
-
-    // Computed properties for dynamic button text
     private var isEditingExistingFavorite: Bool {
         guard !connectionName.isEmpty else { return false }
         return FavoritesStore.shared.favorites.contains(where: { $0.name == connectionName })
     }
 
-    private var favoriteButtonText: String {
-        isEditingExistingFavorite ? "Save Changes" : "Add to Favorites"
-    }
-
     var body: some View {
-        ZStack(alignment: .bottom) {
-            ScrollView {
-                Form {
-                    Section(header: Text("Connection Details").font(.title2).padding(8)) {
-                    // TODO: review SwiftUI method to apply textFieldStyle automatically
-                    TextField("Connection Name", text: $connectionName, prompt: Text("Connection Name"))
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Host", text: $host, prompt: Text("Host"))
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Port", value: $port, formatter: NumberFormatter(), prompt: Text("Port"))
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Database", text: $database, prompt: Text("Database"))
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Username", text: $username, prompt: Text("Username"))
-                        .textFieldStyle(.roundedBorder)
-                    SecureField("Password", text: $password, prompt: Text("Password"))
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                // Visual Customization Section
-                Section {
-                    HStack(spacing: 6) {
-                        // No color button
-                        Button(action: {
-                            selectedColorHex = nil
-                        }) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .stroke(Color.gray, lineWidth: selectedColorHex == nil ? 2 : 1)
-                                    .frame(width: 16, height: 16)
-                                Image(systemName: "slash.circle")
-                                    .foregroundColor(.gray)
-                                    .font(.system(size: 10))
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .help("No color")
-
-                        // Color selection buttons
-                        ForEach(predefinedColors, id: \.hex) { colorOption in
-                            Button(action: {
-                                selectedColorHex = colorOption.hex
-                            }) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(hexToColor(colorOption.hex))
-                                        .frame(width: 16, height: 16)
-                                    if selectedColorHex == colorOption.hex {
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .stroke(Color.primary, lineWidth: 2)
-                                            .frame(width: 16, height: 16)
-                                    }
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .help(colorOption.name)
-                        }
-                    }
-                }
-
-                // SSH Tunnel Section
-                Section {
-                    DisclosureGroup(
-                        isExpanded: $useSSHTunnel,
-                        content: {
-                            VStack(spacing: 10) {
-                                TextField("SSH Host", text: $sshHost, prompt: Text("SSH Host"))
-                                    .textFieldStyle(.roundedBorder)
-                                TextField("SSH Port", value: $sshPort, formatter: NumberFormatter(), prompt: Text("22"))
-                                    .textFieldStyle(.roundedBorder)
-                                TextField("SSH User", text: $sshUser, prompt: Text("SSH User"))
-                                    .textFieldStyle(.roundedBorder)
-                                HStack {
-                                    TextField("SSH Key Path", text: $sshKeyPath, prompt: Text("~/.ssh/id_rsa"))
-                                        .textFieldStyle(.roundedBorder)
-                                    Button("Browse...") {
-                                        selectSSHKeyFile()
-                                    }
-                                    .buttonStyle(.bordered)
-                                }
-                            }
-                            .padding(.top, 8)
-                        },
-                        label: {
-                            Toggle("Use SSH Tunnel", isOn: $useSSHTunnel)
-                        }
+        ScrollView {
+            VStack(spacing: Spacing.xl) {
+                // Connection Section
+                GroupedSectionView(title: "Connection") {
+                    ConnectionSection(
+                        host: $host,
+                        port: $port,
+                        database: $database,
+                        username: $username,
+                        password: $password,
+                        useSSL: $useSSL
                     )
                 }
 
-                Section {
-                    VStack(spacing: 15) {
-                        HStack {
-                            Toggle("Use SSL", isOn: $useSSL)
-                            Spacer()
-                            Button("Test Connection") {
-                                testConnection()
-                            }
-                            .buttonStyle(.bordered)
-                            .frame(maxWidth: .infinity)
-                        }
-                        
-                        Button(action: connect) {
-                            Text("Connect")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        
-                        Button(action: addToFavorites) {
-                            Text(favoriteButtonText)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        
-                        Text(connectionValidityText())
-                            .foregroundColor(connectionValidityTextColor())
-                            .textSelection(.enabled)
-                            .font(.subheadline)
-                            .frame(height: 80, alignment: .top)
-                    }
+                // SSH Tunnel Section
+                GroupedSectionView(title: "SSH Tunnel") {
+                    SSHTunnelSection(
+                        useSSHTunnel: $useSSHTunnel,
+                        sshHost: $sshHost,
+                        sshPort: $sshPort,
+                        sshUser: $sshUser,
+                        sshKeyPath: $sshKeyPath,
+                        sshKeyBookmarkData: $sshKeyBookmarkData
+                    )
                 }
-                .padding(.trailing, 16)  // Prevent scrollbar overlap
-            }
-            .frame(maxWidth: 400)
-            .padding(.top, 20)
-            }
-            .onChange(of: selectedConnection, {
-                updateStateFromSelectedConnection()
-                connectionValidity = .untested
 
-                if selectedConnection.configuration!.connectRightAway {
-                    connect()
+                // Appearance Section (for saving favorites)
+                GroupedSectionView(title: "Save as Favorite") {
+                    FormTextField(label: "Name", text: $connectionName, placeholder: "My Database", showDivider: true)
+                    ColorPickerRow(selectedColorHex: $selectedColorHex)
                 }
-            })
-            .onAppear {
-                keyEventMonitor.startMonitoring(
-                    commandEnter: {
-                        if self.validateForm() {
-                            self.connect()
-                        }
+
+                // Status display (only show when relevant)
+                if case .untested = connectionValidity {
+                    // Don't show anything
+                } else {
+                    ConnectionStatusView(state: connectionValidity)
+                }
+
+                // Action Buttons
+                actionButtons
+            }
+            .padding(Spacing.xl)
+            .frame(maxWidth: FormMetrics.maxFormWidth)
+            .frame(maxWidth: .infinity)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onChange(of: selectedConnection) {
+            updateStateFromSelectedConnection()
+            connectionValidity = .untested
+
+            if selectedConnection.configuration?.connectRightAway == true {
+                connect()
+            }
+        }
+        .onAppear {
+            keyEventMonitor.startMonitoring(
+                commandEnter: {
+                    if validateForm() {
+                        connect()
                     }
-                )
-            }
-            .onDisappear {
-                keyEventMonitor.stopMonitoring()
-            }
-            .animation(.easeInOut, value: showBanner)
-        }        
-    }
-    
-    private func connectionValidityText() -> String {
-        switch connectionValidity {
-        case .untested: return ""
-        case .testing: return "Testing connection..."
-        case .valid: return "Connection is valid"
-        case .invalid(let message): return message
+                }
+            )
+        }
+        .onDisappear {
+            keyEventMonitor.stopMonitoring()
         }
     }
-    
-    private func connectionValidityTextColor() -> Color {
-        switch connectionValidity {
-        case .untested: return .primary
-        case .testing: return .primary
-        case .valid: return .green
-        case .invalid: return .red
+
+    private var actionButtons: some View {
+        VStack(spacing: Spacing.sm) {
+            HStack(spacing: Spacing.md) {
+                Button {
+                    testConnection()
+                } label: {
+                    Text("Test Connection")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+
+                Button {
+                    connect()
+                } label: {
+                    Text("Connect")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.return, modifiers: .command)
+            }
+
+            Button {
+                addToFavorites()
+            } label: {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: isEditingExistingFavorite ? "checkmark" : "star")
+                    Text(isEditingExistingFavorite ? "Update Favorite" : "Save to Favorites")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .disabled(connectionName.isEmpty)
+
+            Text("Press \u{2318}\u{21A9} to connect quickly")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .padding(.top, Spacing.xs)
         }
     }
-    
+
     private func updateStateFromSelectedConnection() {
         if let config = selectedConnection.configuration {
             self.connectionName = config.name
@@ -277,72 +199,6 @@ struct DatabaseConnectionView: View {
         }
     }
 
-    private func selectSSHKeyFile() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.message = "Select SSH Private Key File"
-        panel.begin { response in
-            if response == .OK, let url = panel.url {
-
-                // Try to create a bookmark first (works for most locations)
-                do {
-                    let bookmarkData = try url.bookmarkData(
-                        options: .withSecurityScope,
-                        includingResourceValuesForKeys: nil,
-                        relativeTo: nil
-                    )
-                    self.sshKeyBookmarkData = bookmarkData
-                    self.sshKeyPath = url.path
-                    print("Created security-scoped bookmark for SSH key: \(url.path)")
-                    return
-                } catch {
-                    print("Bookmark creation failed (likely protected location like .ssh)")
-                    print("Will copy key to app's Application Support directory instead")
-                }
-
-                // Bookmark failed (e.g., .ssh directory) - copy key to Application Support
-                do {
-                    // Read the key file (we have temporary access from file picker)
-                    let keyData = try Data(contentsOf: url)
-                    print("Read SSH key: \(keyData.count) bytes")
-
-                    // Get Application Support directory
-                    let fileManager = FileManager.default
-                    guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-                        print("Failed to get Application Support directory")
-                        return
-                    }
-
-                    // Create Searchlight/ssh-keys directory
-                    let sshKeysDir = appSupport.appendingPathComponent("Searchlight/ssh-keys", isDirectory: true)
-                    try fileManager.createDirectory(at: sshKeysDir, withIntermediateDirectories: true, attributes: nil)
-
-                    // Copy key with original filename
-                    let originalFilename = url.lastPathComponent
-                    let copiedKeyURL = sshKeysDir.appendingPathComponent(originalFilename)
-
-                    // Write key to Application Support
-                    try keyData.write(to: copiedKeyURL, options: [.atomic])
-
-                    // Set restrictive permissions (0600 - owner read/write only)
-                    let attributes = [FileAttributeKey.posixPermissions: 0o600]
-                    try fileManager.setAttributes(attributes, ofItemAtPath: copiedKeyURL.path)
-
-                    // Store the copied path (no bookmark needed - it's in our app directory)
-                    self.sshKeyPath = copiedKeyURL.path
-                    self.sshKeyBookmarkData = nil
-                    
-                } catch {
-                    print("Failed to copy SSH key: \(error.localizedDescription)")
-                    self.sshKeyPath = url.path
-                    self.sshKeyBookmarkData = nil
-                }
-            }
-        }
-    }
-    
     private func testConnection() {
         connectionValidity = .testing
         Task {
@@ -357,10 +213,9 @@ struct DatabaseConnectionView: View {
             }
         }
     }
-    
+
     private func addToFavorites() {
         guard validateForm() && connectionName != "" else {
-            // TODO: provide information on missing fields
             self.connectionValidity = .invalid("Missing connection info")
             return
         }
@@ -368,7 +223,7 @@ struct DatabaseConnectionView: View {
         let config = stateToDatabaseConnection(markAsFavorited: true)
         FavoritesStore.shared.saveFavorite(databaseConnectionConfiguration: config)
     }
-    
+
     private func connect() {
         let connection = stateToDatabaseConnection()
         connectionValidity = .testing
@@ -380,8 +235,6 @@ struct DatabaseConnectionView: View {
                 self.connectionValidity = .valid
 
                 appState.selectedDatabase = database
-                // We set the selection to databases here to silence SwiftUI warnings.
-                // This is because we have a selectedDatabase before databases list is populated, and therefore the picker will have a selection in which is not within the possible values
                 appState.databases = [database]
                 appState.selectedDatabaseConnectionConfiguration = connection
 
@@ -422,10 +275,10 @@ struct DatabaseConnectionView: View {
             favoriteIcon: "star.fill"
         )
     }
-    
+
     private func stateToConfig() -> SQLPostgresConfiguration {
         let context = try! NIOSSLContext(configuration: TLSConfiguration.makeClientConfiguration())
-        
+
         return SQLPostgresConfiguration(
             hostname: self.host,
             port: self.port ?? 5432,
@@ -435,21 +288,9 @@ struct DatabaseConnectionView: View {
             tls: self.useSSL ? .require(context) : .disable
         )
     }
-    
-    private func validateForm() -> Bool {
-        // TODO: refactor this to provide information on missing fields
-        return !host.isEmpty && !database.isEmpty && !username.isEmpty
-    }
 
-    // Helper function for color conversion
-    private func hexToColor(_ hex: String) -> Color {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let r = Double((int >> 16) & 0xFF) / 255.0
-        let g = Double((int >> 8) & 0xFF) / 255.0
-        let b = Double(int & 0xFF) / 255.0
-        return Color(red: r, green: g, blue: b)
+    private func validateForm() -> Bool {
+        return !host.isEmpty && !database.isEmpty && !username.isEmpty
     }
 }
 

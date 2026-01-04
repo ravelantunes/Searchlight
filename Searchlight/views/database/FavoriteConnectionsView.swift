@@ -14,59 +14,122 @@ import Foundation
 import SwiftUI
 
 struct FavoriteConnectionsView: View {
-    
+
     @StateObject private var favoriteStore = FavoritesStore.shared
     @Binding var selectedConnection: DatabaseConnectionConfiguration
-    @State private var newConnectionSelected = false
+    @State private var selectedConnectionID: String?
 
-    
+    private let newConnectionConfig = DatabaseConnectionConfiguration(
+        name: "",
+        host: "",
+        database: "",
+        user: "",
+        password: "",
+        ssl: true,
+        favorited: false,
+        sshTunnel: nil
+    )
+
+    private var isNewConnectionSelected: Bool {
+        selectedConnection.name.isEmpty && !selectedConnection.favorited
+    }
+
     var body: some View {
-        List(selection: $selectedConnection) {            
-            NavigationLink(value: DatabaseConnectionConfiguration(name: "", host: "", database: "", user: "", password: "", ssl: true, favorited: false, sshTunnel: nil)) {
-                Label("New Connection", systemImage: "plus")
-            }
-            Section("Favorites") {
-                ForEach(favoriteStore.favorites) { favoriteConnection in
-                    NavigationLink(value: favoriteConnection) {
-                        Label {
-                            Text(favoriteConnection.name)
-                        } icon: {
-                            Image(systemName: "star.fill")
-                                .foregroundColor(favoriteConnection.favoriteColor != nil ? hexToColor(favoriteConnection.favoriteColor!) : .secondary)
-                        }
-                    }
-                    .onTapGesture(count: 2) {
-                        // Make copy of favoriteConnection so we can append connectRightAway to the struct
-                        let favoriteConnectionCopy = DatabaseConnectionConfiguration(
-                            name: favoriteConnection.name,
-                            host: favoriteConnection.host,
-                            database: favoriteConnection.database,
-                            user: favoriteConnection.user,
-                            password: favoriteConnection.password,
-                            ssl: favoriteConnection.ssl,
-                            favorited: favoriteConnection.favorited,
-                            sshTunnel: favoriteConnection.sshTunnel,
-                            connectRightAway: true,
-                            favoriteColor: favoriteConnection.favoriteColor,
-                            favoriteIcon: favoriteConnection.favoriteIcon
-                        )
-                        selectedConnection = favoriteConnectionCopy
-                    }
-                    .simultaneousGesture(TapGesture(count: 1).onEnded {
-                        selectedConnection = favoriteConnection
-                    })
-                    .contextMenu {
-                        Button("delete \(favoriteConnection.name)") {
-                            favoriteStore.removeFavorite(databaseConnectionConfiguration: favoriteConnection)
-                        }
+        List(selection: $selectedConnectionID) {
+            Section {
+                if favoriteStore.favorites.isEmpty {
+                    EmptyFavoritesView()
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                } else {
+                    ForEach(favoriteStore.favorites) { connection in
+                        favoriteRow(for: connection)
+                            .tag(connection.id)
                     }
                 }
+            } header: {
+                HStack {
+                    Text("Favorites")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+
+                    Spacer()
+
+                    if !favoriteStore.favorites.isEmpty {
+                        Text("\(favoriteStore.favorites.count)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, Spacing.xs)
+                            .padding(.vertical, 2)
+                            .background(
+                                Capsule()
+                                    .fill(Color.secondary.opacity(0.15))
+                            )
+                    }
+                }
+                .padding(.bottom, Spacing.xxs)
             }
-            
+            .listRowInsets(EdgeInsets(
+                top: 2,
+                leading: Spacing.sm,
+                bottom: 2,
+                trailing: Spacing.lg
+            ))
         }
-        .onAppear(perform: reselectLastSelectedDatabase)
+        .listStyle(.sidebar)
+        .onChange(of: selectedConnectionID) { _, newID in
+            if let newID, let connection = favoriteStore.favorites.first(where: { $0.id == newID }) {
+                selectedConnection = connection
+            }
+        }
+        .onChange(of: selectedConnection) { _, newConnection in
+            if newConnection.favorited {
+                selectedConnectionID = newConnection.id
+            } else {
+                selectedConnectionID = nil
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Button {
+                selectedConnection = newConnectionConfig
+            } label: {
+                HStack {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("New Connection")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.glass)
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, Spacing.sm)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 0))
     }
-    
+
+    private func favoriteRow(for connection: DatabaseConnectionConfiguration) -> some View {
+        FavoriteConnectionRow(connection: connection, isSelected: selectedConnectionID == connection.id)
+            .contextMenu {
+                Button(role: .destructive) {
+                    favoriteStore.removeFavorite(databaseConnectionConfiguration: connection)
+                } label: {
+                    Label("Delete \"\(connection.name)\"", systemImage: "trash")
+                }
+
+                Divider()
+
+                Button {
+                    // Future: duplicate functionality
+                } label: {
+                    Label("Duplicate", systemImage: "doc.on.doc")
+                }
+                .disabled(true)
+            }
+    }
+
     func reselectLastSelectedDatabase() {
         let lastSelectedDatabase = self.favoriteStore.loadLastSelectedDatabase()
         if let selectedDatabase = self.favoriteStore.favorites.first(where: { $0.name == lastSelectedDatabase }) {
@@ -75,15 +138,20 @@ struct FavoriteConnectionsView: View {
             }
         }
     }
+}
 
-    // Helper function for color conversion
-    private func hexToColor(_ hex: String) -> Color {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let r = Double((int >> 16) & 0xFF) / 255.0
-        let g = Double((int >> 8) & 0xFF) / 255.0
-        let b = Double(int & 0xFF) / 255.0
-        return Color(red: r, green: g, blue: b)
-    }
+#Preview {
+    @Previewable @State var selectedConnection = DatabaseConnectionConfiguration(
+        name: "",
+        host: "",
+        database: "",
+        user: "",
+        password: "",
+        ssl: true,
+        favorited: false,
+        sshTunnel: nil
+    )
+
+    FavoriteConnectionsView(selectedConnection: $selectedConnection)
+        .frame(width: 260, height: 400)
 }
