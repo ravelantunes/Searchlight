@@ -17,7 +17,8 @@ struct TableSelectionContentView: View {
     
     @EnvironmentObject var pgApi: PostgresDatabaseAPI
     @EnvironmentObject var appState: AppState
-    
+    @EnvironmentObject var connectionsManagerObservableWrapper: ConnectionsManagerObservableWrapper
+
     @State private var schemas = [Schema]()
     @State private var schemaExpansionState: [String: Bool] = [:]
         
@@ -49,17 +50,21 @@ struct TableSelectionContentView: View {
                     })
                 }
             }
-        }.onAppear {
-            refreshTables()
+        }.task {
+            await refreshTables()
         }
         .onChange(of: appState.selectedDatabase, initial: true) { oldValue, newValue in
-            refreshTables()
+            guard let database = newValue else { return }
+            Task {
+                try await connectionsManagerObservableWrapper.connectionManager.switchConnectionTo(database: database)
+                await refreshTables()
+            }
         }
         .navigationTitle(appState.selectedDatabase!)
     }
     
-    private func refreshTables() {
-        Task {
+    private func refreshTables() async {
+        do {
             let systemSchemas: Set<String> = [
                 "information_schema",
                 "pg_catalog",
@@ -101,6 +106,8 @@ struct TableSelectionContentView: View {
                     schemaExpansionState[schemas.first!.name] = true
                 }
             }
+        } catch {
+            print("Error refreshing tables: \(error.localizedDescription)")
         }
     }
 }

@@ -68,12 +68,9 @@ struct WindowGroupView: View {
         .frame(minWidth: 700, minHeight: 500)
         .navigationSplitViewStyle(.prominentDetail)
         .toolbar(removing: .sidebarToggle)
-        .onChange(of: appState.selectedDatabase, initial: true) { oldValue, newValue in
-            guard let newValue else { return }
+        .onChange(of: appState.selectedDatabase) { oldValue, newValue in
+            guard newValue != nil else { return }
             hasLeftInitialScreen = true
-            Task {
-                try? await connectionsManagerObservableWrapper.connectionManager.switchConnectionTo(database: newValue)
-            }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { _ in
             reopenWindowIfNeeded()
