@@ -73,6 +73,14 @@ struct QueryParameters: Equatable, Changeable {
                 case .isNotNull:
                     skipFilterValue = true
                     return "IS NOT NULL"
+                case .greaterThan:
+                    return ">"
+                case .lessThan:
+                    return "<"
+                case .greaterThanOrEqual:
+                    return ">="
+                case .lessThanOrEqual:
+                    return "<="
                 default:
                     return filter.operation.rawValue
                 }

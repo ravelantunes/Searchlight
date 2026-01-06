@@ -19,6 +19,8 @@ enum FilterOperator: String, CaseIterable, Identifiable {
     case isNotNull = "is not NULL"
     case greaterThan = "greater than"
     case lessThan = "less than"
+    case greaterThanOrEqual = "greater or equal"
+    case lessThanOrEqual = "less or equal"
     case startsWith = "starts with"
     case endsWith = "ends with"
     
@@ -79,10 +81,12 @@ struct TableFilter: View {
         }
         .onChange(of: selectedFilterColumn) { oldColumn, newColumn in
             switch newColumn?.typeName {
-            case "timestamp":
-                operationOptions = [.equals, .greaterThan, .lessThan]
+            case "timestamp", "date", "time":
+                operationOptions = [.equals, .greaterThan, .lessThan, .greaterThanOrEqual, .lessThanOrEqual, .isNull, .isNotNull]
+            case "int2", "int4", "int8", "integer", "smallint", "bigint", "numeric", "decimal", "real", "float4", "float8", "double precision":
+                operationOptions = [.equals, .greaterThan, .lessThan, .greaterThanOrEqual, .lessThanOrEqual, .isNull, .isNotNull]
             case "varchar", "uuid", "text":
-                operationOptions = [.equals, .contains, .isNull, .isNotNull]
+                operationOptions = [.equals, .contains, .startsWith, .endsWith, .isNull, .isNotNull]
             default:
                 operationOptions = [.equals, .isNull, .isNotNull]
             }
