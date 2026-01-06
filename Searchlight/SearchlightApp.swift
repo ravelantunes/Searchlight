@@ -18,6 +18,13 @@ struct SearchlightApp: App {
                 .environmentObject(appDelegate)
         }
         .windowResizability(.contentSize)
+        .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About Searchlight") {
+                    appDelegate.showAboutWindow()
+                }
+            }
+        }
     }
 }
 
@@ -97,6 +104,25 @@ struct WindowGroupView: View {
 @MainActor
 final class SearchlightAppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     @Published var isTerminating = false
+    private var aboutWindow: NSWindow?
+
+    func showAboutWindow() {
+        if aboutWindow == nil {
+            let aboutView = AboutView()
+            let hostingController = NSHostingController(rootView: aboutView)
+
+            let window = NSWindow(contentViewController: hostingController)
+            window.title = "About Searchlight"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.center()
+
+            aboutWindow = window
+        }
+
+        aboutWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         isTerminating = true
