@@ -176,7 +176,7 @@ class TableViewAppKit: NSView {
                 let size = DatabaseTableViewCell.calculateSizeForContent(content: cell!)
                 return max(currentMax, size.width)
             }
-            tableColumn.width = max(biggestSizeFromRows, 100)
+            tableColumn.width = min(max(biggestSizeFromRows, 100), 400)
 
             tableViewHeader.alphaValue = 0
             NSAnimationContext.runAnimationGroup { context in
@@ -206,7 +206,12 @@ class TableViewAppKit: NSView {
         
         let isClickingOnARow = clickedRowIndex != -1
 //        selectedRow = data.rows.indices.contains(clickedRowIndex) ? data.rows[clickedRowIndex] : nil
-        
+
+        // Select the right-clicked row if it's not already part of the selection
+        if isClickingOnARow && !tableView.selectedRowIndexes.contains(clickedRowIndex) {
+            tableView.selectRowIndexes(IndexSet(integer: clickedRowIndex), byExtendingSelection: false)
+        }
+
         let isMultipleRowsSelected = tableView.selectedRowIndexes.count > 1
         let menu = NSMenu(title: "Context Menu")
         menu.autoenablesItems = false
