@@ -241,6 +241,17 @@ struct DatabaseConnectionView: View {
                 if appState.selectedDatabaseConnectionConfiguration.favorited {
                     FavoritesStore.shared.saveLastSelectedDatabaseName(databaseConnectionConfigurationName: appState.selectedDatabaseConnectionConfiguration.name)
                 }
+
+                // Start the Language Server for SQL editor features
+                let tunnelPort = connectionsManagerObservableWrapper.connectionManager.tunnelLocalPort
+                Task {
+                    do {
+                        try await appState.lspManager.start(config: connection, tunnelPort: tunnelPort)
+                    } catch {
+                        // LSP failure is non-fatal - editor still works without it
+                        print("[LSP] Failed to start language server: \(error)")
+                    }
+                }
             } catch let error as SSHTunnelError {
                 self.connectionValidity = .invalid("SSH: \(error.localizedDescription)")
                 return

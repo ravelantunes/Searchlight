@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		80AB53DF2D3DA6D900240422 /* PostgresKit in Frameworks */ = {isa = PBXBuildFile; productRef = 80AB53DE2D3DA6D900240422 /* PostgresKit */; };
 		80AB53E22D3DA7A700240422 /* SQLParser in Frameworks */ = {isa = PBXBuildFile; productRef = 80AB53E12D3DA7A700240422 /* SQLParser */; };
+		80LSP00022D3DA5D80058448D /* LanguageClient in Frameworks */ = {isa = PBXBuildFile; productRef = 80LSP00032D3DA5D80058448D /* LanguageClient */; };
+		80LSP00042D3DA5D80058448D /* LanguageServerProtocol in Frameworks */ = {isa = PBXBuildFile; productRef = 80LSP00052D3DA5D80058448D /* LanguageServerProtocol */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,6 +33,8 @@
 			files = (
 				80AB53E22D3DA7A700240422 /* SQLParser in Frameworks */,
 				80AB53DF2D3DA6D900240422 /* PostgresKit in Frameworks */,
+				80LSP00022D3DA5D80058448D /* LanguageClient in Frameworks */,
+				80LSP00042D3DA5D80058448D /* LanguageServerProtocol in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -69,6 +73,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 80AF59FE2D3DA5D90058448D /* Build configuration list for PBXNativeTarget "Searchlight" */;
 			buildPhases = (
+				80LSP0012D3DA5D80058448D /* Download LSP Binary */,
 				80AF59EB2D3DA5D80058448D /* Sources */,
 				80AF59EC2D3DA5D80058448D /* Frameworks */,
 				80AF59ED2D3DA5D80058448D /* Resources */,
@@ -84,6 +89,8 @@
 			packageProductDependencies = (
 				80AB53DE2D3DA6D900240422 /* PostgresKit */,
 				80AB53E12D3DA7A700240422 /* SQLParser */,
+				80LSP00032D3DA5D80058448D /* LanguageClient */,
+				80LSP00052D3DA5D80058448D /* LanguageServerProtocol */,
 			);
 			productName = Searchlight;
 			productReference = 80AF59EF2D3DA5D80058448D /* Searchlight.app */;
@@ -115,6 +122,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				80AB53DD2D3DA6D900240422 /* XCRemoteSwiftPackageReference "postgres-kit" */,
+				80LSP00062D3DA5D80058448D /* XCRemoteSwiftPackageReference "LanguageClient" */,
+				80LSP00072D3DA5D80058448D /* XCRemoteSwiftPackageReference "LanguageServerProtocol" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 80AF59F02D3DA5D80058448D /* Products */;
@@ -135,6 +144,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		80LSP0012D3DA5D80058448D /* Download LSP Binary */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Download LSP Binary";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Searchlight/Resources/Binaries/postgres-language-server",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Download Postgres Language Server binary if not present\nLSP_VERSION=\"0.18.0\"\nLSP_DIR=\"${SRCROOT}/Searchlight/Resources/Binaries\"\nLSP_BINARY=\"${LSP_DIR}/postgres-language-server\"\nDOWNLOAD_URL=\"https://github.com/supabase-community/postgres-language-server/releases/download/${LSP_VERSION}/postgres-language-server_aarch64-apple-darwin\"\nEXPECTED_SHA256=\"8c4d5ac0238afaa7a60516fecee9b0d584b78c72bf0a754657cdc1c164360e66\"\n\n# Create directory if needed\nmkdir -p \"$LSP_DIR\"\n\nif [ -f \"$LSP_BINARY\" ]; then\n    echo \"Postgres Language Server binary already exists\"\n    # Verify checksum\n    ACTUAL_SHA256=$(shasum -a 256 \"$LSP_BINARY\" | cut -d' ' -f1)\n    if [ \"$ACTUAL_SHA256\" != \"$EXPECTED_SHA256\" ]; then\n        echo \"Warning: Checksum mismatch. Re-downloading...\"\n        rm \"$LSP_BINARY\"\n    else\n        echo \"Checksum verified\"\n        exit 0\n    fi\nfi\n\necho \"Downloading Postgres Language Server v${LSP_VERSION}...\"\ncurl -L -o \"$LSP_BINARY\" \"$DOWNLOAD_URL\"\n\nif [ $? -ne 0 ]; then\n    echo \"error: Failed to download Postgres Language Server\"\n    exit 1\nfi\n\n# Verify checksum\nACTUAL_SHA256=$(shasum -a 256 \"$LSP_BINARY\" | cut -d' ' -f1)\nif [ \"$ACTUAL_SHA256\" != \"$EXPECTED_SHA256\" ]; then\n    echo \"error: Checksum verification failed\"\n    echo \"Expected: $EXPECTED_SHA256\"\n    echo \"Actual:   $ACTUAL_SHA256\"\n    rm \"$LSP_BINARY\"\n    exit 1\nfi\n\nchmod +x \"$LSP_BINARY\"\necho \"Postgres Language Server downloaded and verified successfully\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		80AF59EB2D3DA5D80058448D /* Sources */ = {
@@ -361,6 +393,22 @@
 				minimumVersion = 2.13.5;
 			};
 		};
+		80LSP00062D3DA5D80058448D /* XCRemoteSwiftPackageReference "LanguageClient" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ChimeHQ/LanguageClient.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.8.0;
+			};
+		};
+		80LSP00072D3DA5D80058448D /* XCRemoteSwiftPackageReference "LanguageServerProtocol" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ChimeHQ/LanguageServerProtocol.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.14.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -372,6 +420,16 @@
 		80AB53E12D3DA7A700240422 /* SQLParser */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SQLParser;
+		};
+		80LSP00032D3DA5D80058448D /* LanguageClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 80LSP00062D3DA5D80058448D /* XCRemoteSwiftPackageReference "LanguageClient" */;
+			productName = LanguageClient;
+		};
+		80LSP00052D3DA5D80058448D /* LanguageServerProtocol */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 80LSP00072D3DA5D80058448D /* XCRemoteSwiftPackageReference "LanguageServerProtocol" */;
+			productName = LanguageServerProtocol;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

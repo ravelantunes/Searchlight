@@ -38,12 +38,24 @@ Download the latest release from the [Releases Page](https://github.com/ravelant
 - Syntax highlighting with custom SQL tokenizer
 - View results in the same data table interface
 
+## Building from Source
+
+1. Clone the repository
+2. Open `Searchlight.xcodeproj` in Xcode
+3. Build twice (⌘B, ⌘B) — the first build downloads dependencies, the second includes them
+4. Run (⌘R)
+
+The first build automatically downloads the [Postgres Language Server](https://github.com/supabase-community/postgres-language-server) binary (~16MB) for SQL autocompletion, syntax checking, and hover documentation. A second build is needed to bundle it into the app.
+
+> **Note:** The LSP binary is currently only available for Apple Silicon (arm64). Intel Mac support can be added if needed.
+
 ## Tech Stack
 
 - **Swift & SwiftUI** — Native macOS app with AppKit integration for advanced table views
 - **PostgresKit / PostgresNIO** — PostgreSQL driver with connection pooling
 - **SwiftNIO** — Async networking foundation
 - **System SSH** — Native SSH tunnel support using macOS system tools
+- **Postgres Language Server** — SQL intelligence (autocompletion, diagnostics, hover docs)
 
 ## Contributing
 

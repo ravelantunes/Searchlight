@@ -25,6 +25,11 @@ class PostgresConnection {
     private var sshTunnelManager: SSHTunnelManager?
     private var isClosed = false
 
+    // The local port used by the SSH tunnel, or nil if no tunnel is active
+    var tunnelLocalPort: Int? {
+        return sshTunnelManager?.localPort
+    }
+
     init(configuration: DatabaseConnectionConfiguration) async throws {
         self.configuration = configuration
         eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)

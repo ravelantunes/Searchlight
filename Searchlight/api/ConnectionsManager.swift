@@ -33,6 +33,11 @@ class ConnectionsManager {
         return selectedConnection!
     }
 
+    // The SSH tunnel local port of the currently selected connection, if any
+    var tunnelLocalPort: Int? {
+        return selectedConnection?.tunnelLocalPort
+    }
+
     func initializeConnection(configuration: DatabaseConnectionConfiguration) async throws -> PostgresConnection {
         if templateConnection == nil {
             templateConnection = configuration

@@ -57,7 +57,7 @@ struct DatabaseViewer: View {
                             // TODO: implement error handling from editor
                         }
                     }
-                })
+                }, lspManager: appState.lspManager)
             } else {
                 TableFilter(columns: data.columns, queryParams: $queryParams)
             }
@@ -132,7 +132,7 @@ struct DatabaseViewer: View {
                 self.queryParams = QueryParameters(schemaName: self.queryParams.schemaName, tableName: self.queryParams.tableName, sortColumn: newValue.first?.columnKey, sortOrder: newValue.first?.order, limit: self.queryParams.limit, filters: self.queryParams.filters)
                 self.refreshData()
             }
-            .frame(maxHeight: .infinity, alignment: .top)      
+            .frame(maxHeight: .infinity, alignment: .top)
             .onChange(of: appState.selectedTable, initial: true) { oldValue, newValue in
                 guard let table = newValue, newValue != oldValue else {
                     return
