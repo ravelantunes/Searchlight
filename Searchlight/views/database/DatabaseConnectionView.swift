@@ -246,7 +246,7 @@ struct DatabaseConnectionView: View {
                 let tunnelPort = connectionsManagerObservableWrapper.connectionManager.tunnelLocalPort
                 Task {
                     do {
-                        try await appState.lspManager.start(config: connection, tunnelPort: tunnelPort)
+                        try await connectionsManagerObservableWrapper.connectionManager.lspManager.start(config: connection, tunnelPort: tunnelPort)
                     } catch {
                         // LSP failure is non-fatal - editor still works without it
                         print("[LSP] Failed to start language server: \(error)")

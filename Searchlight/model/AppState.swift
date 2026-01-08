@@ -18,7 +18,4 @@ class AppState: ObservableObject {
     @Published var selectedDatabase: String?
     @Published var selectedTable: Table?
     @Published var selectedDatabaseConnectionConfiguration = DatabaseConnectionConfiguration(name: "", host: "", database: "", user: "", password: "", ssl: false, favorited: false, sshTunnel: nil)
-
-    /// The Postgres Language Server manager for SQL editor features
-    let lspManager = PostgresLSPManager()
 }

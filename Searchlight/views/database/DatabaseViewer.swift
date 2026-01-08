@@ -14,8 +14,9 @@ import Foundation
 import SwiftUI
 
 struct DatabaseViewer: View {
-    
-    @EnvironmentObject var appState: AppState    
+
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var connectionsManagerObservableWrapper: ConnectionsManagerObservableWrapper
     @EnvironmentObject var pgApi: PostgresDatabaseAPI
 
     @StateObject var dataTableController = DataTableController()
@@ -57,7 +58,7 @@ struct DatabaseViewer: View {
                             // TODO: implement error handling from editor
                         }
                     }
-                }, lspManager: appState.lspManager)
+                }, lspManager: connectionsManagerObservableWrapper.connectionManager.lspManager)
             } else {
                 TableFilter(columns: data.columns, queryParams: $queryParams)
             }
