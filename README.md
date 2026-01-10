@@ -46,7 +46,7 @@ Download the latest release from the [Releases Page](https://github.com/ravelant
 
 The first build automatically downloads the [Postgres Language Server](https://github.com/supabase-community/postgres-language-server) binary (~16MB) for SQL autocompletion, syntax checking, and hover documentation. A second build is needed to bundle it into the app.
 
-> **Note:** The LSP binary is currently only available for Apple Silicon (arm64). Intel Mac support can be added if needed.
+> **Note:** The LSP binary is only for Apple Silicon (arm64).
 
 ## Tech Stack
 
