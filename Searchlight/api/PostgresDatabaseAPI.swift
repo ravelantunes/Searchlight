@@ -83,6 +83,7 @@ class PostgresDatabaseAPI: ObservableObject {
         return schemas
     }
     
+    // Lists all accessible databases on the server
     func listDatabases() async throws -> [String] {
         let results = try await connectionManager.connection.query(
             query: "SELECT datname FROM pg_database WHERE datistemplate = false AND datallowconn = true ORDER BY datname;"
@@ -92,6 +93,7 @@ class PostgresDatabaseAPI: ObservableObject {
         }
     }
     
+    // Retrieves column metadata for a table, including foreign key relationships
     func describeTable(tableName: String, schemaName: String) async throws -> [Column] {
         let describeTableQueryString = """
         SELECT
@@ -150,6 +152,7 @@ class PostgresDatabaseAPI: ObservableObject {
     }
     
 
+    // Executes a parameterized SELECT query with pagination, sorting, and filtering
     func select(params: QueryParameters) async throws -> SelectResult {
         
         guard let tableName = params.tableName, let schemaName = params.schemaName else {
@@ -192,6 +195,7 @@ class PostgresDatabaseAPI: ObservableObject {
         return SelectResult(columns: columns, rows: mappedToSelectResultRow, tableName: params.tableName)
     }
     
+    // Inserts a new row and returns the inserted row with its ctid
     func insertRow(schemaName: String, tableName: String, row: SelectResultRow) async throws -> SelectResultRow {
         // Build INSERT statement
         var columnsPart = ""
@@ -241,6 +245,7 @@ class PostgresDatabaseAPI: ObservableObject {
         return insertedRow
     }
     
+    // Updates a row identified by its ctid with dirty cell values
     func updateRow(schemaName: String, tableName: String, row: SelectResultRow) async throws -> Void {
         
         // Filter non-dirty or unsupported cells
@@ -267,6 +272,7 @@ class PostgresDatabaseAPI: ObservableObject {
         _ = try await connectionManager.connection.query(query: query)
     }
     
+    // Deletes multiple rows identified by their ctids
     func deleteRows(schema: String, table: String, rows: [SelectResultRow]) async throws {
         let ids = Array(Set(rows.map { $0.id }))
         guard !ids.isEmpty else { return }
@@ -278,6 +284,7 @@ class PostgresDatabaseAPI: ObservableObject {
         _ = try await connectionManager.connection.query(query: sql)
     }
     
+    // Parses PostgreSQL binary data into a display-friendly cell value representation
     private func parseCellValue(data: PostgresData, column: Column) -> CellValueRepresentation {
         // Determine the PostgreSQL data type
         let dataType = column.typeName.lowercased()

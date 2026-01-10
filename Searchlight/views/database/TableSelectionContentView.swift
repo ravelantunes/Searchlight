@@ -31,22 +31,13 @@ struct TableSelectionContentView: View {
                     selectedDatabase: $appState.selectedDatabase,
                     databases: appState.databases
                 )
-                
+
                 Spacer()
-                
-                Button(action: {
-                    print("Refresh button tapped!")
-                    Task {
-                        await refreshTables()
-                    }
-                }) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14))
-                        .foregroundColor(isRefreshing ? .secondary : .blue)
-                }
-                .buttonStyle(PlainButtonStyle())
-                .disabled(isRefreshing)
-                .help("Refresh tables")
+
+                // TODO: Finish implementing refresh button
+                // - Should refresh the table list when tapped
+                // - Need to handle loading state and errors properly
+                // - Consider adding visual feedback during refresh
             }
             .listRowInsets(EdgeInsets())          
             

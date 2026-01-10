@@ -125,8 +125,15 @@ struct ColumnsListView: View {
 struct StructureColumnRowView: View {
     let column: ColumnDefinition
 
+    // Fixed column widths for alignment
+    private let nameColumnWidth: CGFloat = 180
+    private let typeColumnWidth: CGFloat = 140
+    private let nullableColumnWidth: CGFloat = 80
+    private let defaultColumnWidth: CGFloat = 150
+    private let fkColumnWidth: CGFloat = 180
+
     var body: some View {
-        HStack(spacing: Spacing.md) {
+        HStack(spacing: Spacing.sm) {
             // Column name with indicators
             HStack(spacing: Spacing.xs) {
                 if column.isPrimaryKey {
@@ -134,25 +141,31 @@ struct StructureColumnRowView: View {
                         .foregroundColor(.yellow)
                         .font(.caption)
                         .help("Primary Key")
+                } else {
+                    // Placeholder to maintain alignment
+                    Color.clear.frame(width: 12, height: 12)
                 }
                 if column.isForeignKey {
                     Image(systemName: "arrow.right.circle.fill")
                         .foregroundColor(.blue)
                         .font(.caption)
                         .help("Foreign Key")
+                } else {
+                    // Placeholder to maintain alignment
+                    Color.clear.frame(width: 12, height: 12)
                 }
                 Text(column.name)
                     .fontWeight(column.isPrimaryKey ? .semibold : .regular)
+                    .lineLimit(1)
             }
-            .frame(minWidth: 120, alignment: .leading)
-
-            Spacer()
+            .frame(width: nameColumnWidth, alignment: .leading)
 
             // Type
             Text(column.fullTypeName)
                 .foregroundColor(.secondary)
                 .font(.system(.body, design: .monospaced))
-                .frame(minWidth: 100, alignment: .leading)
+                .lineLimit(1)
+                .frame(width: typeColumnWidth, alignment: .leading)
 
             // Nullable indicator
             Text(column.isNullable ? "NULL" : "NOT NULL")
@@ -161,24 +174,37 @@ struct StructureColumnRowView: View {
                 .padding(.vertical, 2)
                 .background(column.isNullable ? Color.gray.opacity(0.2) : Color.orange.opacity(0.2))
                 .cornerRadius(CornerRadius.small)
+                .frame(width: nullableColumnWidth, alignment: .leading)
 
-            // Default value
-            if let defaultValue = column.columnDefault {
-                Text("= \(truncateDefault(defaultValue))")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .frame(maxWidth: 150, alignment: .leading)
-                    .help(defaultValue)
+            // Default value (always show column for alignment)
+            Group {
+                if let defaultValue = column.columnDefault {
+                    Text("= \(truncateDefault(defaultValue))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .help(defaultValue)
+                } else {
+                    Text("")
+                }
             }
+            .frame(width: defaultColumnWidth, alignment: .leading)
 
-            // FK reference
-            if let fkRef = column.foreignKeyReference {
-                Text("-> \(fkRef.tableName).\(fkRef.columnName)")
-                    .font(.caption)
-                    .foregroundColor(.blue)
-                    .lineLimit(1)
+            // FK reference (always show column for alignment)
+            Group {
+                if let fkRef = column.foreignKeyReference {
+                    Text("-> \(fkRef.tableName).\(fkRef.columnName)")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                        .lineLimit(1)
+                        .help("\(fkRef.schemaName).\(fkRef.tableName).\(fkRef.columnName)")
+                } else {
+                    Text("")
+                }
             }
+            .frame(width: fkColumnWidth, alignment: .leading)
+
+            Spacer()
         }
         .padding(.vertical, Spacing.xxs)
     }
