@@ -35,7 +35,7 @@ enum PostgresLSPError: Error, LocalizedError {
     }
 }
 
-/// Connection state for the LSP
+// Connection state for the LSP
 enum LSPConnectionState: Equatable {
     case disconnected
     case connecting
@@ -43,7 +43,7 @@ enum LSPConnectionState: Equatable {
     case error(String)
 }
 
-/// Manages the Postgres Language Server process lifecycle
+// Manages the Postgres Language Server process lifecycle
 @MainActor
 class PostgresLSPManager: ObservableObject {
     @Published private(set) var state: LSPConnectionState = .disconnected
@@ -59,11 +59,17 @@ class PostgresLSPManager: ObservableObject {
     private var configDirectory: URL?
     private var documentVersion: Int = 0
 
-    /// The virtual document URI used for the SQL editor
-    /// Using a fixed URI since we have a single editor
+    // Track if a stop operation is in progress
+    private var isStopping = false
+
+    // Track if a start operation is in progress
+    private var isStarting = false
+
+    // The virtual document URI used for the SQL editor
+    // Using a fixed URI since we have a single editor
     private let documentURI = "file:///searchlight/query.sql"
 
-    /// Creates a temporary config file for the LSP
+    // Creates a temporary config file for the LSP
     private func createConfigFile(config: DatabaseConnectionConfiguration, tunnelPort: Int?) throws -> URL {
         let host = tunnelPort != nil ? "127.0.0.1" : config.host
         let port = tunnelPort ?? config.port
@@ -125,7 +131,7 @@ class PostgresLSPManager: ObservableObject {
         }
     }
 
-    /// Locates the postgres-language-server binary in the app bundle
+    // Locates the postgres-language-server binary in the app bundle
     private func findLSPBinary() -> URL? {
         // Look in Resources directory
         if let url = Bundle.main.url(forResource: "postgres-language-server", withExtension: nil) {
@@ -143,11 +149,20 @@ class PostgresLSPManager: ObservableObject {
         return nil
     }
 
-    /// Starts the language server process and establishes connection
-    /// - Parameters:
-    ///   - config: The database connection configuration
-    ///   - tunnelPort: Optional local port if SSH tunnel is active
+    // Starts the language server process and establishes connection
+    // - Parameters:
+    //   - config: The database connection configuration
+    //   - tunnelPort: Optional local port if SSH tunnel is active
     func start(config: DatabaseConnectionConfiguration, tunnelPort: Int?) async throws {
+        // Prevent concurrent start operations
+        guard !isStarting else {
+            print("[LSP] Start already in progress, skipping")
+            return
+        }
+
+        isStarting = true
+        defer { isStarting = false }
+
         // Stop any existing instance
         await stop()
 
@@ -269,7 +284,7 @@ class PostgresLSPManager: ObservableObject {
         }
     }
 
-    /// Creates a DataChannel for LSP communication over stdin/stdout
+    // Creates a DataChannel for LSP communication over stdin/stdout
     private func createDataChannel(stdin: Pipe, stdout: Pipe, process: Process) -> DataChannel {
         // Create async stream for reading stdout
         let (stream, continuation) = AsyncStream<Data>.makeStream()
@@ -295,7 +310,7 @@ class PostgresLSPManager: ObservableObject {
         return DataChannel(writeHandler: writeHandler, dataSequence: stream)
     }
 
-    /// Initializes the LSP protocol handshake
+    // Initializes the LSP protocol handshake
     private func initializeLSP(channel: DataChannel) async throws {
         // Create JSON-RPC connection with message framing
         let connection = JSONRPCServerConnection(dataChannel: channel)
@@ -361,7 +376,7 @@ class PostgresLSPManager: ObservableObject {
         }
     }
 
-    /// Handle events from the LSP server
+    // Handle events from the LSP server
     private func handleServerEvent(_ event: ServerEvent) {
         switch event {
         case .notification(let notification):
@@ -390,8 +405,8 @@ class PostgresLSPManager: ObservableObject {
 
     // MARK: - Document Synchronization
 
-    /// Opens a document in the language server
-    /// Call this when the editor becomes active
+    // Opens a document in the language server
+    // Call this when the editor becomes active
     func openDocument(text: String) async throws {
         guard let server = server else {
             throw PostgresLSPError.notConnected
@@ -413,8 +428,8 @@ class PostgresLSPManager: ObservableObject {
         print("[LSP] Document opened")
     }
 
-    /// Updates the document content in the language server
-    /// Call this when the text changes (debounced)
+    // Updates the document content in the language server
+    // Call this when the text changes (debounced)
     func updateDocument(text: String) async throws {
         guard let server = server else {
             throw PostgresLSPError.notConnected
@@ -435,8 +450,8 @@ class PostgresLSPManager: ObservableObject {
         try await server.textDocumentDidChange(params)
     }
 
-    /// Closes the document in the language server
-    /// Call this when the editor closes
+    // Closes the document in the language server
+    // Call this when the editor closes
     func closeDocument() async throws {
         guard let server = server else {
             return // Not an error to close when not connected
@@ -453,11 +468,11 @@ class PostgresLSPManager: ObservableObject {
 
     // MARK: - LSP Requests
 
-    /// Request completions at the given position
-    /// - Parameters:
-    ///   - line: 0-indexed line number
-    ///   - character: 0-indexed character position
-    /// - Returns: Completion items or nil if unavailable
+    // Request completions at the given position
+    // - Parameters:
+    //   - line: 0-indexed line number
+    //   - character: 0-indexed character position
+    // - Returns: Completion items or nil if unavailable
     func requestCompletions(line: Int, character: Int) async throws -> [CompletionItem] {
         guard let server = server else {
             throw PostgresLSPError.notConnected
@@ -481,11 +496,11 @@ class PostgresLSPManager: ObservableObject {
         }
     }
 
-    /// Request hover information at the given position
-    /// - Parameters:
-    ///   - line: 0-indexed line number
-    ///   - character: 0-indexed character position
-    /// - Returns: Hover information or nil if unavailable
+    // Request hover information at the given position
+    // - Parameters:
+    //   - line: 0-indexed line number
+    //   - character: 0-indexed character position
+// - Returns: Hover information or nil if unavailable
     func requestHover(line: Int, character: Int) async throws -> Hover? {
         guard let server = server else {
             throw PostgresLSPError.notConnected
@@ -499,8 +514,16 @@ class PostgresLSPManager: ObservableObject {
         return try await server.hover(params)
     }
 
-    /// Stops the language server process
+    // Stops the language server process
     func stop() async {
+        // Prevent concurrent stop operations and skip if already stopped
+        guard !isStopping && (process != nil || server != nil) else {
+            return
+        }
+
+        isStopping = true
+        defer { isStopping = false }
+
         // Cancel event monitoring
         eventTask?.cancel()
         eventTask = nil
@@ -525,10 +548,16 @@ class PostgresLSPManager: ObservableObject {
             }
         }
 
-        // Close pipes
-        try? stdinPipe?.fileHandleForWriting.close()
-        try? stdoutPipe?.fileHandleForReading.close()
-        try? stderrPipe?.fileHandleForReading.close()
+        // Close pipes safely
+        if let stdinPipe = stdinPipe {
+            try? stdinPipe.fileHandleForWriting.close()
+        }
+        if let stdoutPipe = stdoutPipe {
+            try? stdoutPipe.fileHandleForReading.close()
+        }
+        if let stderrPipe = stderrPipe {
+            try? stderrPipe.fileHandleForReading.close()
+        }
 
         self.process = nil
         self.server = nil
@@ -543,7 +572,7 @@ class PostgresLSPManager: ObservableObject {
         print("[LSP] Stopped")
     }
 
-    /// Restarts the language server with the same configuration
+    // Restarts the language server with the same configuration
     func restart(config: DatabaseConnectionConfiguration, tunnelPort: Int?) async throws {
         await stop()
         try await start(config: config, tunnelPort: tunnelPort)

@@ -64,3 +64,6 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Postgres Language Server binary (downloaded during build)
+Searchlight/Resources/Binaries/postgres-language-server

@@ -28,8 +28,11 @@ class ConnectionsManager {
     // Keep a reference to the first connection to be used to create different connections during database changes
     private var templateConnection: DatabaseConnectionConfiguration?
 
-    /// The Postgres Language Server manager for SQL editor features
+    // The Postgres Language Server manager for SQL editor features
     let lspManager = PostgresLSPManager()
+
+    // Track if an LSP restart is in progress to prevent concurrent restarts
+    private var lspRestartTask: Task<Void, Never>?
 
     var connection: PostgresConnection {
         guard selectedConnection != nil else {
@@ -64,6 +67,11 @@ class ConnectionsManager {
 
 
     func switchConnectionTo(database: String) async throws {
+        // Skip if we're already on this database (use connection identity check)
+        if let existing = connectionMap[database], existing === selectedConnection {
+            return
+        }
+
         if let connection = connectionMap[database] {
             selectedConnection = connection
             await restartLSP(forDatabase: database)
@@ -80,19 +88,34 @@ class ConnectionsManager {
         throw ConnectionManagerError.connectionNotFound(database)
     }
 
-    /// Restarts the LSP for the specified database connection
+    // Restarts the LSP for the specified database connection
     private func restartLSP(forDatabase database: String) async {
         guard let connection = connectionMap[database],
               let config = configMap[database] else {
             return
         }
 
-        do {
-            try await lspManager.restart(config: config, tunnelPort: connection.tunnelLocalPort)
-        } catch {
-            // LSP failure is non-fatal - editor still works without it
-            print("[LSP] Failed to restart language server: \(error)")
+        // Cancel any pending LSP restart task
+        lspRestartTask?.cancel()
+
+        // Create a new restart task
+        let task = Task {
+            // Small delay to debounce rapid calls
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+
+            guard !Task.isCancelled else { return }
+
+            do {
+                try await lspManager.restart(config: config, tunnelPort: connection.tunnelLocalPort)
+            } catch {
+                // LSP failure is non-fatal - editor still works without it
+                print("[LSP] Failed to restart language server: \(error)")
+            }
         }
+        lspRestartTask = task
+
+        // Wait for completion
+        await task.value
     }
 
     func connection(database: String) throws -> PostgresConnection {

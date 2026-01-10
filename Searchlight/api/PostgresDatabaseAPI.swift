@@ -60,6 +60,7 @@ class PostgresDatabaseAPI: ObservableObject {
         return SelectResult(columns: columns, rows: mappedRows, tableName: nil)
     }
     
+    // Lists all tables grouped by schema
     func listTables() async throws -> [Schema] {
         let results = try await connectionManager.connection.query(query: "SELECT table_catalog, table_schema, table_name, table_type FROM information_schema.tables WHERE table_type = 'BASE TABLE' ORDER BY table_name;")
         
@@ -280,7 +281,7 @@ class PostgresDatabaseAPI: ObservableObject {
     private func parseCellValue(data: PostgresData, column: Column) -> CellValueRepresentation {
         // Determine the PostgreSQL data type
         let dataType = column.typeName.lowercased()
-    
+
         guard var value = data.value else {
             return CellValueRepresentation.null
         }
@@ -419,6 +420,358 @@ class PostgresDatabaseAPI: ObservableObject {
             print("Failed to parse value from column \(column.name) with type \(dataType)")
             return CellValueRepresentation.unsupported
         }
+    }
+
+    // MARK: - Table Structure Methods
+
+    /// Fetches complete table structure including columns, indexes, and constraints
+    func fetchTableStructure(schemaName: String, tableName: String) async throws -> TableStructure {
+        async let columnsTask = fetchColumnDefinitions(schemaName: schemaName, tableName: tableName)
+        async let indexesTask = fetchIndexes(schemaName: schemaName, tableName: tableName)
+        async let constraintsTask = fetchConstraints(schemaName: schemaName, tableName: tableName)
+
+        let columns = try await columnsTask
+        let indexes = try await indexesTask
+        let constraints = try await constraintsTask
+
+        return TableStructure(
+            schemaName: schemaName,
+            tableName: tableName,
+            columns: columns,
+            indexes: indexes,
+            constraints: constraints
+        )
+    }
+
+    // Fetches detailed column definitions for structure view
+    func fetchColumnDefinitions(schemaName: String, tableName: String) async throws -> [ColumnDefinition] {
+        let query = """
+        SELECT
+            c.column_name,
+            c.data_type,
+            c.udt_name,
+            c.ordinal_position,
+            c.is_nullable = 'YES' AS is_nullable,
+            c.column_default,
+            c.character_maximum_length,
+            c.numeric_precision,
+            c.numeric_scale,
+            COALESCE(pk.is_pk, false) AS is_primary_key,
+            COALESCE(fk.is_fk, false) AS is_foreign_key,
+            fk.foreign_schema,
+            fk.foreign_table,
+            fk.foreign_column
+        FROM information_schema.columns c
+        LEFT JOIN (
+            SELECT kcu.column_name, true AS is_pk
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+            WHERE tc.constraint_type = 'PRIMARY KEY'
+                AND tc.table_schema = '\(schemaName)'
+                AND tc.table_name = '\(tableName)'
+        ) pk ON c.column_name = pk.column_name
+        LEFT JOIN (
+            SELECT
+                kcu.column_name,
+                true AS is_fk,
+                ccu.table_schema AS foreign_schema,
+                ccu.table_name AS foreign_table,
+                ccu.column_name AS foreign_column
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.constraint_column_usage ccu
+                ON tc.constraint_name = ccu.constraint_name
+                AND tc.table_schema = ccu.constraint_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+                AND tc.table_schema = '\(schemaName)'
+                AND tc.table_name = '\(tableName)'
+        ) fk ON c.column_name = fk.column_name
+        WHERE c.table_schema = '\(schemaName)'
+            AND c.table_name = '\(tableName)'
+        ORDER BY c.ordinal_position;
+        """
+
+        let results = try await connectionManager.connection.query(query: query)
+        return results.map { row in
+            let foreignKeyRef: ForeignKeyReference?
+            let foreignSchema: String? = (try? row["foreign_schema"].decode(String?.self)) ?? nil
+            let foreignTable: String? = (try? row["foreign_table"].decode(String?.self)) ?? nil
+            let foreignColumn: String? = (try? row["foreign_column"].decode(String?.self)) ?? nil
+            if let fs = foreignSchema, let ft = foreignTable, let fc = foreignColumn {
+                foreignKeyRef = ForeignKeyReference(
+                    schemaName: fs,
+                    tableName: ft,
+                    columnName: fc
+                )
+            } else {
+                foreignKeyRef = nil
+            }
+
+            return ColumnDefinition(
+                name: try! row["column_name"].decode(String.self),
+                dataType: try! row["data_type"].decode(String.self),
+                udtName: try! row["udt_name"].decode(String.self),
+                ordinalPosition: try! row["ordinal_position"].decode(Int.self),
+                isNullable: try! row["is_nullable"].decode(Bool.self),
+                columnDefault: try? row["column_default"].decode(String?.self) ?? nil,
+                characterMaximumLength: try? row["character_maximum_length"].decode(Int?.self) ?? nil,
+                numericPrecision: try? row["numeric_precision"].decode(Int?.self) ?? nil,
+                numericScale: try? row["numeric_scale"].decode(Int?.self) ?? nil,
+                isPrimaryKey: try! row["is_primary_key"].decode(Bool.self),
+                isForeignKey: try! row["is_foreign_key"].decode(Bool.self),
+                foreignKeyReference: foreignKeyRef
+            )
+        }
+    }
+
+    // Fetches indexes for the specified table
+    func fetchIndexes(schemaName: String, tableName: String) async throws -> [IndexDefinition] {
+        let query = """
+        SELECT
+            i.relname AS index_name,
+            t.relname AS table_name,
+            array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum))::text AS column_names,
+            ix.indisunique AS is_unique,
+            ix.indisprimary AS is_primary,
+            am.amname AS index_type,
+            pg_get_indexdef(ix.indexrelid) AS index_definition
+        FROM pg_index ix
+        JOIN pg_class i ON ix.indexrelid = i.oid
+        JOIN pg_class t ON ix.indrelid = t.oid
+        JOIN pg_namespace n ON t.relnamespace = n.oid
+        JOIN pg_am am ON i.relam = am.oid
+        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+        WHERE n.nspname = '\(schemaName)'
+            AND t.relname = '\(tableName)'
+        GROUP BY i.relname, t.relname, ix.indisunique, ix.indisprimary, am.amname, ix.indexrelid
+        ORDER BY i.relname;
+        """
+
+        let results = try await connectionManager.connection.query(query: query)
+        return results.map { row in
+            let columnsRaw = try! row["column_names"].decode(String.self)
+            let columns = parsePostgresArray(columnsRaw)
+
+            return IndexDefinition(
+                name: try! row["index_name"].decode(String.self),
+                tableName: try! row["table_name"].decode(String.self),
+                columns: columns,
+                isUnique: try! row["is_unique"].decode(Bool.self),
+                isPrimaryKey: try! row["is_primary"].decode(Bool.self),
+                indexType: try! row["index_type"].decode(String.self),
+                indexDefinition: try! row["index_definition"].decode(String.self)
+            )
+        }
+    }
+
+    // Fetches constraints for the specified table
+    func fetchConstraints(schemaName: String, tableName: String) async throws -> [ConstraintDefinition] {
+        let query = """
+        SELECT
+            tc.constraint_name,
+            tc.constraint_type,
+            (array_agg(DISTINCT kcu.column_name) FILTER (WHERE kcu.column_name IS NOT NULL))::text AS columns,
+            cc.check_clause,
+            ccu.table_schema AS foreign_schema,
+            ccu.table_name AS foreign_table,
+            ccu.column_name AS foreign_column,
+            rc.delete_rule,
+            rc.update_rule
+        FROM information_schema.table_constraints tc
+        LEFT JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+        LEFT JOIN information_schema.check_constraints cc
+            ON tc.constraint_name = cc.constraint_name
+            AND tc.constraint_schema = cc.constraint_schema
+        LEFT JOIN information_schema.constraint_column_usage ccu
+            ON tc.constraint_name = ccu.constraint_name
+            AND tc.constraint_schema = ccu.constraint_schema
+            AND tc.constraint_type = 'FOREIGN KEY'
+        LEFT JOIN information_schema.referential_constraints rc
+            ON tc.constraint_name = rc.constraint_name
+            AND tc.constraint_schema = rc.constraint_schema
+        WHERE tc.table_schema = '\(schemaName)'
+            AND tc.table_name = '\(tableName)'
+        GROUP BY tc.constraint_name, tc.constraint_type, cc.check_clause,
+                 ccu.table_schema, ccu.table_name, ccu.column_name,
+                 rc.delete_rule, rc.update_rule
+        ORDER BY tc.constraint_type, tc.constraint_name;
+        """
+
+        let results = try await connectionManager.connection.query(query: query)
+        return results.compactMap { row -> ConstraintDefinition? in
+            let constraintTypeStr = try! row["constraint_type"].decode(String.self)
+            guard let constraintType = ConstraintType(rawValue: constraintTypeStr) else {
+                return nil
+            }
+
+            let columnsRaw = try? row["columns"].decode(String?.self) ?? nil
+            let columns = columnsRaw.map { parsePostgresArray($0) } ?? []
+
+            let foreignKeyRef: ForeignKeyReference?
+            if constraintType == .foreignKey {
+                let foreignSchema: String? = (try? row["foreign_schema"].decode(String?.self)) ?? nil
+                let foreignTable: String? = (try? row["foreign_table"].decode(String?.self)) ?? nil
+                let foreignColumn: String? = (try? row["foreign_column"].decode(String?.self)) ?? nil
+                if let fs = foreignSchema, let ft = foreignTable, let fc = foreignColumn {
+                    foreignKeyRef = ForeignKeyReference(
+                        schemaName: fs,
+                        tableName: ft,
+                        columnName: fc
+                    )
+                } else {
+                    foreignKeyRef = nil
+                }
+            } else {
+                foreignKeyRef = nil
+            }
+
+            return ConstraintDefinition(
+                name: try! row["constraint_name"].decode(String.self),
+                constraintType: constraintType,
+                columns: columns,
+                checkExpression: try? row["check_clause"].decode(String?.self) ?? nil,
+                foreignKeyReference: foreignKeyRef,
+                onDelete: try? row["delete_rule"].decode(String?.self) ?? nil,
+                onUpdate: try? row["update_rule"].decode(String?.self) ?? nil
+            )
+        }
+    }
+
+    // Helper to parse PostgreSQL array format "{a,b,c}" to Swift array
+    private func parsePostgresArray(_ raw: String) -> [String] {
+        let trimmed = raw.trimmingCharacters(in: CharacterSet(charactersIn: "{}"))
+        guard !trimmed.isEmpty else { return [] }
+        return trimmed.components(separatedBy: ",")
+    }
+
+    // MARK: - DDL Modification Methods
+
+    // Adds a new column to the table
+    func addColumn(schemaName: String, tableName: String, columnName: String,
+                   dataType: String, isNullable: Bool, defaultValue: String?) async throws {
+        var ddl = "ALTER TABLE \"\(schemaName)\".\"\(tableName)\" ADD COLUMN \"\(columnName)\" \(dataType)"
+
+        if !isNullable {
+            ddl += " NOT NULL"
+        }
+
+        if let defaultValue = defaultValue, !defaultValue.isEmpty {
+            ddl += " DEFAULT \(defaultValue)"
+        }
+
+        ddl += ";"
+        _ = try await connectionManager.connection.query(query: ddl)
+    }
+
+    // Drops a column from the table
+    func dropColumn(schemaName: String, tableName: String, columnName: String) async throws {
+        let ddl = "ALTER TABLE \"\(schemaName)\".\"\(tableName)\" DROP COLUMN \"\(columnName)\";"
+        _ = try await connectionManager.connection.query(query: ddl)
+    }
+
+    // Renames a column
+    func renameColumn(schemaName: String, tableName: String, oldName: String, newName: String) async throws {
+        let ddl = "ALTER TABLE \"\(schemaName)\".\"\(tableName)\" RENAME COLUMN \"\(oldName)\" TO \"\(newName)\";"
+        _ = try await connectionManager.connection.query(query: ddl)
+    }
+
+    // Changes a column's data type
+    func alterColumnType(schemaName: String, tableName: String, columnName: String,
+                         newType: String, usingExpression: String? = nil) async throws {
+        var ddl = "ALTER TABLE \"\(schemaName)\".\"\(tableName)\" ALTER COLUMN \"\(columnName)\" TYPE \(newType)"
+
+        if let using = usingExpression {
+            ddl += " USING \(using)"
+        }
+
+        ddl += ";"
+        _ = try await connectionManager.connection.query(query: ddl)
+    }
+
+    // Sets or drops NOT NULL constraint
+    func alterColumnNullability(schemaName: String, tableName: String, columnName: String,
+                                isNullable: Bool) async throws {
+        let action = isNullable ? "DROP NOT NULL" : "SET NOT NULL"
+        let ddl = "ALTER TABLE \"\(schemaName)\".\"\(tableName)\" ALTER COLUMN \"\(columnName)\" \(action);"
+        _ = try await connectionManager.connection.query(query: ddl)
+    }
+
+    // Sets or drops column default
+    func alterColumnDefault(schemaName: String, tableName: String, columnName: String,
+                            defaultValue: String?) async throws {
+        let action: String
+        if let value = defaultValue, !value.isEmpty {
+            action = "SET DEFAULT \(value)"
+        } else {
+            action = "DROP DEFAULT"
+        }
+        let ddl = "ALTER TABLE \"\(schemaName)\".\"\(tableName)\" ALTER COLUMN \"\(columnName)\" \(action);"
+        _ = try await connectionManager.connection.query(query: ddl)
+    }
+
+    // Creates an index
+    func createIndex(schemaName: String, tableName: String, indexName: String,
+                     columns: [String], isUnique: Bool, indexType: String = "btree") async throws {
+        let uniqueClause = isUnique ? "UNIQUE " : ""
+        let columnsClause = columns.map { "\"\($0)\"" }.joined(separator: ", ")
+        let ddl = "CREATE \(uniqueClause)INDEX \"\(indexName)\" ON \"\(schemaName)\".\"\(tableName)\" USING \(indexType) (\(columnsClause));"
+        _ = try await connectionManager.connection.query(query: ddl)
+    }
+
+    // Drops an index
+    func dropIndex(schemaName: String, indexName: String) async throws {
+        let ddl = "DROP INDEX \"\(schemaName)\".\"\(indexName)\";"
+        _ = try await connectionManager.connection.query(query: ddl)
+    }
+
+    // Adds a constraint
+    func addConstraint(schemaName: String, tableName: String, constraintName: String,
+                       constraintType: ConstraintType, columns: [String],
+                       checkExpression: String? = nil, foreignKeyReference: ForeignKeyReference? = nil,
+                       onDelete: String? = nil, onUpdate: String? = nil) async throws {
+        var ddl = "ALTER TABLE \"\(schemaName)\".\"\(tableName)\" ADD CONSTRAINT \"\(constraintName)\" "
+
+        let cols = columns.map { "\"\($0)\"" }.joined(separator: ", ")
+
+        switch constraintType {
+        case .primaryKey:
+            ddl += "PRIMARY KEY (\(cols))"
+        case .unique:
+            ddl += "UNIQUE (\(cols))"
+        case .foreignKey:
+            guard let fkRef = foreignKeyReference else {
+                throw SearchlightAPIError(description: "Foreign key reference required")
+            }
+            ddl += "FOREIGN KEY (\(cols)) REFERENCES \"\(fkRef.schemaName)\".\"\(fkRef.tableName)\"(\"\(fkRef.columnName)\")"
+            if let onDelete = onDelete {
+                ddl += " ON DELETE \(onDelete)"
+            }
+            if let onUpdate = onUpdate {
+                ddl += " ON UPDATE \(onUpdate)"
+            }
+        case .check:
+            guard let checkExpr = checkExpression else {
+                throw SearchlightAPIError(description: "Check expression required")
+            }
+            ddl += "CHECK (\(checkExpr))"
+        case .exclusion:
+            throw SearchlightAPIError(description: "Exclusion constraints are not supported")
+        }
+
+        ddl += ";"
+        _ = try await connectionManager.connection.query(query: ddl)
+    }
+
+    // Drops a constraint
+    func dropConstraint(schemaName: String, tableName: String, constraintName: String) async throws {
+        let ddl = "ALTER TABLE \"\(schemaName)\".\"\(tableName)\" DROP CONSTRAINT \"\(constraintName)\";"
+        _ = try await connectionManager.connection.query(query: ddl)
     }
 }
 

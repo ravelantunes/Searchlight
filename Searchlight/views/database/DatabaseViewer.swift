@@ -30,105 +30,127 @@ struct DatabaseViewer: View {
     @State private var showEditor = false
     @State private var text = ""
     @State private var isLoading = false
-    
+    @State private var viewMode: DatabaseViewMode = .data
+
     // Keep reference to current API call task, so it can be cancelled
     @State private var currentTask: Task<Void, Never>?
 
     var body: some View {
-        VStack(spacing: 0) {
-            if showEditor {
-                AppKitTextView(text: $text, onQuerySubmit: { queryString in
-                    Task {
-                        do {
-                            withAnimation {
-                                isLoading = true
-                            }
-                            defer {
-                                withAnimation {
-                                    isLoading = false
-                                }
-                            }
+        ZStack {
+            // Structure view - shown when viewMode == .structure
+            TableStructureView(isActive: viewMode == .structure)
+                .opacity(viewMode == .structure ? 1 : 0)
+                .allowsHitTesting(viewMode == .structure)
+
+            // Data view - shown when viewMode == .data
+            VStack(spacing: 0) {
+                if showEditor {
+                    AppKitTextView(text: $text, onQuerySubmit: { queryString in
+                        Task {
                             do {
-                                errorMessage = ""
-                                data = try await pgApi.execute(queryString)
-                            } catch {
-                                errorMessage = error.localizedDescription
+                                withAnimation {
+                                    isLoading = true
+                                }
+                                defer {
+                                    withAnimation {
+                                        isLoading = false
+                                    }
+                                }
+                                do {
+                                    errorMessage = ""
+                                    data = try await pgApi.execute(queryString)
+                                } catch {
+                                    errorMessage = error.localizedDescription
+                                }
+
+                                // TODO: implement error handling from editor
                             }
-                            
-                            // TODO: implement error handling from editor
                         }
+                    }, lspManager: connectionsManagerObservableWrapper.connectionManager.lspManager)
+                } else {
+                    TableFilter(columns: data.columns, queryParams: $queryParams)
+                }
+                ZStack {
+                    DataTable(data: data, controller: dataTableController, sortOrder: $sortOrder, readOnly: false)
+                        .onRowUpdate(perform: handleRowUpdate)
+                        .onRowInsert(perform: handleRowInsert)
+                        .onRowDelete(perform: handleRowDelete)
+                        .disabled(isLoading)
+                        .id(data.id)
+
+                    if isLoading {
+                        Color.black.opacity(0.3)
+                            .ignoresSafeArea()
+                        ProgressView("Loading...")
+                            .progressViewStyle(CircularProgressViewStyle())
+                            .padding()
+                            .transition(.opacity)
                     }
-                }, lspManager: connectionsManagerObservableWrapper.connectionManager.lspManager)
-            } else {
-                TableFilter(columns: data.columns, queryParams: $queryParams)
-            }
-            ZStack {
-                DataTable(data: data, controller: dataTableController, sortOrder: $sortOrder, readOnly: false)
-                    .onRowUpdate(perform: handleRowUpdate)
-                    .onRowInsert(perform: handleRowInsert)
-                    .onRowDelete(perform: handleRowDelete)
-                    .disabled(isLoading)
-                    .id(data.id)
-                
-                if isLoading {
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                    ProgressView("Loading...")
-                        .progressViewStyle(CircularProgressViewStyle())
-                        .padding()
-                        .transition(.opacity)
+                }
+                .animation(.easeInOut, value: isLoading)
+                HStack(alignment: .center) {
+                    Button(action: {
+                        dataTableController.insertRow()
+                    }) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 12))
+                    }
+                        .buttonStyle(PlainButtonStyle())
+                        .accessibilityLabel("Add")
+                        .padding(3)
+                        .disabled(data.tableName == nil)
+                    Text(errorMessage)
+                    Spacer()
+                    Divider().frame(height: 20)
+                    Button(action: {
+                        queryParams = queryParams.previousPage()
+                    }) {
+                        Image(systemName: "arrowshape.left.fill")
+                            .font(.system(size: 10)) // Adjusts the size of the symbol
+                    }
+                        .buttonStyle(PlainButtonStyle())
+                        .accessibilityLabel("Paginate left")
+                        .padding(3)
+                        .disabled(!hasPreviousPage())
+                    Divider().frame(height: 20)
+                    Text(pageNumber().codingKey.stringValue)
+                    Divider().frame(height: 20)
+                    Button(action: {
+                        queryParams = queryParams.nextPage()
+                    }) {
+                        Image(systemName: "arrowshape.right.fill")
+                            .font(.system(size: 10)) // Adjusts the size of the symbol
+                    }
+                        .buttonStyle(PlainButtonStyle())
+                        .accessibilityLabel("Paginate right")
+                        .padding(.trailing, 10)
+                        .disabled(!hasNextPage())
                 }
             }
-            .animation(.easeInOut, value: isLoading)
-            HStack(alignment: .center) {
-                Button(action: {
-                    dataTableController.insertRow()
-                }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12))
-                }
-                    .buttonStyle(PlainButtonStyle())
-                    .accessibilityLabel("Add")
-                    .padding(3)
-                    .disabled(data.tableName == nil)
-                Text(errorMessage)
-                Spacer()
-                Divider().frame(height: 20)
-                Button(action: {
-                    queryParams = queryParams.previousPage()
-                }) {
-                    Image(systemName: "arrowshape.left.fill")
-                        .font(.system(size: 10)) // Adjusts the size of the symbol
-                }
-                    .buttonStyle(PlainButtonStyle())
-                    .accessibilityLabel("Paginate left")
-                    .padding(3)
-                    .disabled(!hasPreviousPage())
-                Divider().frame(height: 20)
-                Text(pageNumber().codingKey.stringValue)
-                Divider().frame(height: 20)
-                Button(action: {
-                    queryParams = queryParams.nextPage()
-                }) {
-                    Image(systemName: "arrowshape.right.fill")
-                        .font(.system(size: 10)) // Adjusts the size of the symbol
-                }
-                    .buttonStyle(PlainButtonStyle())
-                    .accessibilityLabel("Paginate right")
-                    .padding(.trailing, 10)
-                    .disabled(!hasNextPage())
-            }
+            .opacity(viewMode == .data ? 1 : 0)
+            .allowsHitTesting(viewMode == .data)
         }
         .toolbar(content: {
-            ToolbarItem(placement: ToolbarItemPlacement.cancellationAction) {
+            ToolbarItem(placement: .navigation) {
                 Button {
                     showEditor.toggle()
                 } label: {
                     Label("Editor", systemImage: "terminal.fill")
                         .foregroundColor(showEditor ? .blue : .primary)
+                }
+                .disabled(viewMode == .structure)
+            }
+
+            ToolbarItem(placement: .principal) {
+                Picker("View Mode", selection: $viewMode) {
+                    ForEach(DatabaseViewMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
                     }
                 }
-            })
+                .pickerStyle(.segmented)
+                .frame(width: 160)
+            }
+        })
             .onChange(of: sortOrder) { oldValue, newValue in
                 self.queryParams = QueryParameters(schemaName: self.queryParams.schemaName, tableName: self.queryParams.tableName, sortColumn: newValue.first?.columnKey, sortOrder: newValue.first?.order, limit: self.queryParams.limit, filters: self.queryParams.filters)
                 self.refreshData()

@@ -21,13 +21,34 @@ struct TableSelectionContentView: View {
 
     @State private var schemas = [Schema]()
     @State private var schemaExpansionState: [String: Bool] = [:]
+    @State private var isRefreshing = false
+    @State private var refreshError: String?
         
     var body: some View {
         List(selection: $appState.selectedTable) {
-            DatabasePicker(
-                selectedDatabase: $appState.selectedDatabase,
-                databases: appState.databases
-            )          
+            HStack {
+                DatabasePicker(
+                    selectedDatabase: $appState.selectedDatabase,
+                    databases: appState.databases
+                )
+                
+                Spacer()
+                
+                Button(action: {
+                    print("Refresh button tapped!")
+                    Task {
+                        await refreshTables()
+                    }
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 14))
+                        .foregroundColor(isRefreshing ? .secondary : .blue)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(isRefreshing)
+                .help("Refresh tables")
+            }
+            .listRowInsets(EdgeInsets())          
             
             Section("Tables") {
                 ForEach(schemas) { schema in
@@ -53,17 +74,38 @@ struct TableSelectionContentView: View {
         }.task {
             await refreshTables()
         }
-        .onChange(of: appState.selectedDatabase, initial: true) { oldValue, newValue in
+        .onChange(
+            of: appState.selectedDatabase,
+            initial: true
+        ) { oldValue, newValue in
             guard let database = newValue else { return }
             Task {
-                try await connectionsManagerObservableWrapper.connectionManager.switchConnectionTo(database: database)
+                try await connectionsManagerObservableWrapper.connectionManager
+                    .switchConnectionTo(database: database)
                 await refreshTables()
             }
         }
         .navigationTitle(appState.selectedDatabase!)
+        .alert("Refresh Error", isPresented: .constant(refreshError != nil)) {
+            Button("OK") {
+                refreshError = nil
+            }
+        } message: {
+            if let error = refreshError {
+                Text(error)
+            }
+        }
     }
     
     private func refreshTables() async {
+        print("refreshTables() called!")
+        isRefreshing = true
+        refreshError = nil
+        
+        defer {
+            isRefreshing = false
+        }
+        
         do {
             let systemSchemas: Set<String> = [
                 "information_schema",
@@ -107,6 +149,7 @@ struct TableSelectionContentView: View {
                 }
             }
         } catch {
+            refreshError = error.localizedDescription
             print("Error refreshing tables: \(error.localizedDescription)")
         }
     }
