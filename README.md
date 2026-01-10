@@ -35,8 +35,7 @@ Download the latest release from the [Releases Page](https://github.com/ravelant
 ### Query Editor
 
 - Free-form SQL query execution
-- Syntax highlighting with custom SQL tokenizer
-- View results in the same data table interface
+- SQL LSP support for autocompletion, diagnostics, and hover documentation
 
 ## Building from Source
 
