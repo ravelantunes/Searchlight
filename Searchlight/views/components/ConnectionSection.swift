@@ -12,6 +12,13 @@
 
 import SwiftUI
 
+enum ConnectionDefaults {
+    static let host = "localhost"
+    static let port = 5432
+    static let database = "postgres"
+    static let username = "postgres"
+}
+
 /// Connection configuration section with host, port, database, credentials, and SSL
 struct ConnectionSection: View {
     @Binding var host: String
@@ -23,10 +30,10 @@ struct ConnectionSection: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            FormTextField(label: "Host", text: $host, placeholder: "localhost", showDivider: true)
-            FormNumberField(label: "Port", value: $port, placeholder: "5432", showDivider: true)
-            FormTextField(label: "Database", text: $database, placeholder: "postgres", showDivider: true)
-            FormTextField(label: "Username", text: $username, placeholder: "postgres", showDivider: true)
+            FormTextField(label: "Host", text: $host, placeholder: ConnectionDefaults.host, showDivider: true)
+            FormNumberField(label: "Port", value: $port, placeholder: String(ConnectionDefaults.port), showDivider: true)
+            FormTextField(label: "Database", text: $database, placeholder: ConnectionDefaults.database, showDivider: true)
+            FormTextField(label: "Username", text: $username, placeholder: ConnectionDefaults.username, showDivider: true)
             FormTextField(label: "Password", text: $password, placeholder: "Enter password", showDivider: true, isSecure: true)
 
             FormFieldRow(label: "Use SSL", showDivider: false) {

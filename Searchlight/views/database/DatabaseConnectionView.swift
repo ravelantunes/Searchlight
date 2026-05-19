@@ -200,6 +200,10 @@ struct DatabaseConnectionView: View {
     }
 
     private func testConnection() {
+        guard validateForm() else {
+            self.connectionValidity = .invalid("Missing connection info")
+            return
+        }
         connectionValidity = .testing
         Task {
             do {
@@ -225,6 +229,10 @@ struct DatabaseConnectionView: View {
     }
 
     private func connect() {
+        guard validateForm() else {
+            self.connectionValidity = .invalid("Missing connection info")
+            return
+        }
         let connection = stateToDatabaseConnection()
         connectionValidity = .testing
         Task {
@@ -262,6 +270,11 @@ struct DatabaseConnectionView: View {
         }
     }
 
+    private var resolvedHost: String { host.isEmpty ? ConnectionDefaults.host : host }
+    private var resolvedDatabase: String { database.isEmpty ? ConnectionDefaults.database : database }
+    private var resolvedUsername: String { username.isEmpty ? ConnectionDefaults.username : username }
+    private var resolvedPort: Int { port ?? ConnectionDefaults.port }
+
     private func stateToDatabaseConnection(markAsFavorited: Bool = false) -> DatabaseConnectionConfiguration {
         let sshConfig: SSHTunnelConfiguration? = useSSHTunnel ? SSHTunnelConfiguration(
             enabled: true,
@@ -274,10 +287,10 @@ struct DatabaseConnectionView: View {
 
         return DatabaseConnectionConfiguration(
             name: connectionName,
-            host: host,
-            port: port!,
-            database: database,
-            user: username,
+            host: resolvedHost,
+            port: resolvedPort,
+            database: resolvedDatabase,
+            user: resolvedUsername,
             password: password,
             ssl: useSSL,
             favorited: markAsFavorited ? true : appState.selectedDatabaseConnectionConfiguration.favorited,
@@ -291,17 +304,17 @@ struct DatabaseConnectionView: View {
         let context = try! NIOSSLContext(configuration: TLSConfiguration.makeClientConfiguration())
 
         return SQLPostgresConfiguration(
-            hostname: self.host,
-            port: self.port ?? 5432,
-            username: self.username,
-            password: self.password,
-            database: self.database,
-            tls: self.useSSL ? .require(context) : .disable
+            hostname: resolvedHost,
+            port: resolvedPort,
+            username: resolvedUsername,
+            password: password,
+            database: resolvedDatabase,
+            tls: useSSL ? .require(context) : .disable
         )
     }
 
     private func validateForm() -> Bool {
-        return !host.isEmpty && !database.isEmpty && !username.isEmpty
+        return !resolvedHost.isEmpty && !resolvedDatabase.isEmpty && !resolvedUsername.isEmpty
     }
 }
 
