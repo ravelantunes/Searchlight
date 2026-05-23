@@ -309,7 +309,7 @@
 				CODE_SIGN_ENTITLEMENTS = Searchlight/Searchlight.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Searchlight/Preview Content\"";
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -339,7 +339,7 @@
 				CODE_SIGN_ENTITLEMENTS = Searchlight/Searchlight.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Searchlight/Preview Content\"";
 				ENABLE_HARDENED_RUNTIME = YES;
